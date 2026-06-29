@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Trophy, Search } from 'lucide-react'
+import { Plus, Trophy, Search, Flame, Crown } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
 import { useActions } from '../components/ActionsProvider'
@@ -12,6 +12,12 @@ const RANK_OPTIONS: { key: RankBy; label: string }[] = [
   { key: 'average', label: 'Average' },
   { key: 'best', label: 'Best' },
   { key: 'latest', label: 'Latest' },
+]
+
+const PODIUM_STYLE = [
+  { height: 'h-32', order: 1, medal: '🥇', label: '#1', metaColor: 'rgba(227,188,99,0.9)', size: 68 },
+  { height: 'h-24', order: 0, medal: '🥈', label: '#2', metaColor: 'rgba(168,176,188,0.9)', size: 56 },
+  { height: 'h-20', order: 2, medal: '🥉', label: '#3', metaColor: 'rgba(201,112,64,0.9)', size: 52 },
 ]
 
 export function Leaderboard() {
@@ -39,7 +45,7 @@ export function Leaderboard() {
         title="Leaderboard"
         subtitle="Live rankings of every model you've scored."
         action={
-          <button className="btn-gold" onClick={() => newScorecard()}>
+          <button className="btn-cm" onClick={() => newScorecard()}>
             <Plus size={16} /> New scorecard
           </button>
         }
@@ -54,7 +60,9 @@ export function Leaderboard() {
               onClick={() => setSettings({ rankBy: o.key })}
               className={classNames(
                 'rounded-lg px-3.5 py-1.5 text-sm font-semibold transition',
-                rankBy === o.key ? 'bg-gold text-[#241606]' : 'text-muted hover:text-content',
+                rankBy === o.key
+                  ? 'bg-gradient-to-br from-gold-soft to-gold text-[#241606]'
+                  : 'text-muted hover:text-content',
               )}
             >
               {o.label}
@@ -76,48 +84,71 @@ export function Leaderboard() {
         <EmptyState
           icon={<Trophy size={28} />}
           title={query ? 'No matches' : 'Nothing ranked yet'}
-          message={query ? 'Try a different search term.' : 'Score a model to put them on the board.'}
+          message={query ? 'Try a different search term.' : 'Score a model on a clip to put them on the board.'}
           action={
             !query && (
-              <button className="btn-gold" onClick={() => newScorecard()}>
-                <Plus size={16} /> Score a round
+              <button className="btn-cm" onClick={() => newScorecard()}>
+                <Plus size={16} /> Score your first clip
               </button>
             )
           }
         />
       ) : (
         <>
-          {/* Podium */}
+          {/* Podium — photo-forward editorial blocks */}
           {podium.length >= 2 && !query && (
-            <div className="mb-6 grid grid-cols-3 items-end gap-2 sm:gap-4">
-              {[1, 0, 2].map((idx) => {
-                const e = podium[idx]
-                if (!e) return <div key={idx} />
-                const heights = ['h-28', 'h-36', 'h-24']
-                const order = idx === 0 ? 1 : idx === 1 ? 0 : 2 // visual order
+            <div className="mb-6 grid grid-cols-3 items-end gap-2 sm:gap-3">
+              {PODIUM_STYLE.map((p, visualIdx) => {
+                // visual order: 2nd | 1st | 3rd  → indices [1, 0, 2]
+                const dataIdx = visualIdx === 0 ? 1 : visualIdx === 1 ? 0 : 2
+                const e = podium[dataIdx]
+                if (!e) return <div key={visualIdx} />
                 const tier = scoreTier(e.metric)
                 return (
                   <button
                     key={e.model.id}
                     onClick={() => go('profile', e.model.id)}
-                    className="flex flex-col items-center"
-                    style={{ order }}
+                    className="group flex flex-col items-center gap-0"
+                    style={{ order: p.order }}
                   >
-                    <Avatar name={e.model.name} emoji={e.model.emoji} accent={e.model.accent} size={idx === 1 ? 64 : 52} />
-                    <p className="mt-2 max-w-full truncate px-1 text-center text-sm font-semibold text-content">
-                      {e.model.name}
+                    {/* Photo or avatar */}
+                    <div className="relative">
+                      {dataIdx === 0 && (
+                        <Crown size={18} className="absolute -top-6 left-1/2 -translate-x-1/2 text-gold drop-shadow" />
+                      )}
+                      <Avatar
+                        name={e.model.name}
+                        emoji={e.model.emoji}
+                        accent={e.model.accent}
+                        size={p.size}
+                        photoUrl={e.model.photoUrl}
+                        ring={dataIdx === 0}
+                      />
+                      {dataIdx === 0 && (
+                        <Flame size={14} className="absolute -bottom-1 -right-1 text-cm-red-soft drop-shadow" />
+                      )}
+                    </div>
+
+                    {/* Name + score */}
+                    <p className="mt-2 max-w-full truncate px-1 text-center text-xs font-bold text-content sm:text-sm">
+                      {e.model.name.split(' ')[0]}
                     </p>
-                    <p className="font-display text-lg font-bold" style={{ color: tier.color }}>
+                    <p className="urban-num text-lg sm:text-2xl" style={{ color: tier.color }}>
                       {e.metric}
                     </p>
+
+                    {/* Podium block */}
                     <div
                       className={classNames(
-                        'mt-1 flex w-full items-start justify-center rounded-t-xl border border-line pt-2 text-2xl',
-                        heights[idx],
+                        'mt-1 flex w-full items-start justify-center rounded-t-xl border border-line/60 pt-2 transition group-hover:opacity-90',
+                        p.height,
                       )}
-                      style={{ background: `linear-gradient(180deg, ${e.model.accent}22, transparent)` }}
+                      style={{
+                        background: `linear-gradient(180deg, ${e.model.accent}28 0%, transparent 80%)`,
+                        borderTop: `2px solid ${p.metaColor}`,
+                      }}
                     >
-                      {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}
+                      <span className="text-xl">{p.medal}</span>
                     </div>
                   </button>
                 )
@@ -125,15 +156,21 @@ export function Leaderboard() {
             </div>
           )}
 
+          {/* Rankings list */}
           <div className="space-y-2">
             {(query || podium.length < 2 ? board : rest).map((entry) => (
               <LeaderRow key={entry.model.id} entry={entry} metricLabel={metricLabel} />
             ))}
           </div>
-          <p className="mt-4 text-center text-xs text-muted">
-            Ranked by <span className="font-semibold text-content">{metricLabel}</span> score ·{' '}
-            {pct(board[0].metric)}% leader · {board.length} ranked
-          </p>
+
+          <div className="mt-4 flex items-center justify-center gap-3">
+            <div className="neon-line flex-1" />
+            <p className="text-xs text-muted">
+              Ranked by <span className="font-semibold text-content">{metricLabel}</span>
+              {' · '}{pct(board[0].metric)}% peak{' · '}{board.length} models ranked
+            </p>
+            <div className="neon-line flex-1" />
+          </div>
         </>
       )}
     </div>

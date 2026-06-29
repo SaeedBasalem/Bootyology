@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Search, Pencil, Heart, ClipboardPlus, Users, LayoutGrid, List, MapPin, Star } from 'lucide-react'
+import { Plus, Search, Pencil, Heart, ClipboardPlus, Users, LayoutGrid, List, MapPin, Star, Flame } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
 import { useActions } from '../components/ActionsProvider'
@@ -155,49 +155,77 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
             {/* Photo area */}
             <button onClick={() => go('profile', m.id)} className="block w-full">
               {m.photoUrl ? (
-                <div className="relative h-56 w-full overflow-hidden">
+                <div className="relative h-60 w-full overflow-hidden">
                   <img
                     src={m.photoUrl}
                     alt={m.name}
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                   />
-                  {/* Gradient overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                  {/* Rank badge */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+                  {/* Rank badge — jersey style */}
                   <div className="absolute left-3 top-3">
                     <span
-                      className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shadow"
-                      style={{ background: rank <= 3 ? 'var(--gold)' : 'rgba(0,0,0,0.6)', color: rank <= 3 ? '#241606' : 'white' }}
+                      className="rank-badge flex h-8 w-8 rounded-lg text-base shadow-lg"
+                      style={{
+                        background: rank === 1 ? 'linear-gradient(135deg,#f3d791,#e3bc63)' : rank <= 3 ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.55)',
+                        color: rank === 1 ? '#241606' : 'white',
+                        backdropFilter: 'blur(4px)',
+                        fontFamily: "'Bebas Neue', Impact, sans-serif",
+                      }}
                     >
-                      #{rank}
+                      {rank}
                     </span>
                   </div>
-                  {m.favorite && (
+                  {/* Tier pill */}
+                  {stats.rounds > 0 && (
                     <div className="absolute right-3 top-3">
-                      <Heart size={16} className="fill-rose text-rose drop-shadow" />
+                      <span className="tier-pill" style={{ background: `${tier.color}22`, color: tier.color, border: `1px solid ${tier.color}55` }}>
+                        {tier.label}
+                      </span>
+                    </div>
+                  )}
+                  {m.favorite && (
+                    <div className="absolute right-3 bottom-[72px]">
+                      <Heart size={15} className="fill-rose text-rose drop-shadow" />
+                    </div>
+                  )}
+                  {rank === 1 && (
+                    <div className="absolute left-3 bottom-[72px]">
+                      <Flame size={15} className="text-cm-red-soft drop-shadow" />
                     </div>
                   )}
                   {/* Name over photo */}
                   <div className="absolute bottom-0 left-0 right-0 p-4">
-                    <p className="font-display text-xl font-bold text-white drop-shadow">{m.name}</p>
-                    {m.aliases && <p className="text-xs text-white/70">aka {m.aliases}</p>}
+                    <p className="font-display text-xl font-bold leading-tight text-white drop-shadow">{m.name}</p>
+                    {m.aliases && <p className="text-[11px] text-white/60">aka {m.aliases}</p>}
                   </div>
                 </div>
               ) : (
                 <div
-                  className="relative flex h-40 items-center justify-center"
+                  className="relative flex h-44 items-center justify-center"
                   style={{ background: `radial-gradient(circle at 30% 25%, ${m.accent}33, ${m.accent}08)` }}
                 >
-                  <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={72} />
+                  <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={76} />
                   <div className="absolute left-3 top-3">
                     <span
-                      className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold shadow"
-                      style={{ background: rank <= 3 ? 'var(--gold)' : 'rgba(0,0,0,0.4)', color: rank <= 3 ? '#241606' : 'var(--text)' }}
+                      className="rank-badge flex h-8 w-8 rounded-lg text-base shadow"
+                      style={{
+                        background: rank === 1 ? 'linear-gradient(135deg,#f3d791,#e3bc63)' : 'rgba(0,0,0,0.4)',
+                        color: rank === 1 ? '#241606' : 'var(--text)',
+                        fontFamily: "'Bebas Neue', Impact, sans-serif",
+                      }}
                     >
-                      #{rank}
+                      {rank}
                     </span>
                   </div>
-                  {m.favorite && <Heart size={16} className="absolute right-3 top-3 fill-rose text-rose" />}
+                  {stats.rounds > 0 && (
+                    <div className="absolute right-3 top-3">
+                      <span className="tier-pill" style={{ background: `${tier.color}22`, color: tier.color, border: `1px solid ${tier.color}55` }}>
+                        {tier.label}
+                      </span>
+                    </div>
+                  )}
+                  {m.favorite && <Heart size={15} className="absolute right-3 bottom-3 fill-rose text-rose" />}
                 </div>
               )}
             </button>
@@ -221,18 +249,18 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
               {/* Score strip */}
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg bg-surface2 py-2">
-                  <p className="font-display text-lg font-bold" style={{ color: tier.color }}>
+                  <p className="urban-num text-2xl" style={{ color: tier.color }}>
                     {stats.rounds ? stats.average : '—'}
                   </p>
                   <p className="text-[10px] uppercase tracking-wide text-muted">Avg</p>
                 </div>
                 <div className="rounded-lg bg-surface2 py-2">
-                  <p className="font-display text-lg font-bold text-content">{stats.rounds ? stats.best : '—'}</p>
+                  <p className="urban-num text-2xl text-content">{stats.rounds ? stats.best : '—'}</p>
                   <p className="text-[10px] uppercase tracking-wide text-muted">Best</p>
                 </div>
                 <div className="rounded-lg bg-surface2 py-2">
-                  <p className="font-display text-lg font-bold text-content">{stats.rounds}</p>
-                  <p className="text-[10px] uppercase tracking-wide text-muted">Rounds</p>
+                  <p className="urban-num text-2xl text-content">{stats.rounds}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted">Clips</p>
                 </div>
               </div>
 
@@ -338,7 +366,7 @@ function ListView({ models, go, editModel, newScorecard }: ViewProps) {
               </div>
               <div className="hidden sm:block">
                 <p className="text-sm font-bold text-content">{stats.rounds}</p>
-                <p className="text-[10px] text-muted">rds</p>
+                <p className="text-[10px] text-muted">clips</p>
               </div>
             </div>
             <div className="flex gap-1">

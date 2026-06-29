@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,500&family=DM+Sans:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;0,700;0,800;1,500&family=DM+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,14 +7,13 @@
 /* ============================================================
    Theme tokens — dark "studio" theme (default).
    .light on <html> swaps to the light palette.
-   CM Red is the ChocolateModels.com brand colour —
-   it stays consistent across both themes.
+   CM Red is the ChocolateModels.com brand colour.
    ============================================================ */
 :root {
-  --bg: #0f0a09;
-  --surface: #1a1210;
-  --surface-2: #251915;
-  --border: #372420;
+  --bg: #0d0907;
+  --surface: #181210;
+  --surface-2: #221714;
+  --border: #352018;
   --text: #f6ece3;
   --text-muted: #b39b8b;
   --gold: #e3bc63;
@@ -22,14 +21,13 @@
   --rose: #d98a8a;
   --good: #6fc28d;
   --bad: #e0846f;
-  /* ChocolateModels.com brand red */
   --cm-red: #cc1111;
   --cm-red-soft: #ff3b3b;
-  /* RGB channels for Tailwind opacity modifiers */
-  --bg-rgb: 15 10 9;
-  --surface-rgb: 26 18 16;
-  --surface-2-rgb: 37 25 21;
-  --border-rgb: 55 36 32;
+  /* RGB channels for opacity modifiers */
+  --bg-rgb: 13 9 7;
+  --surface-rgb: 24 18 16;
+  --surface-2-rgb: 34 23 20;
+  --border-rgb: 53 32 24;
   --text-rgb: 246 236 227;
   --text-muted-rgb: 179 155 139;
   --gold-rgb: 227 188 99;
@@ -43,10 +41,10 @@
 }
 
 html.light {
-  --bg: #f6efe7;
+  --bg: #f3ebe0;
   --surface: #ffffff;
-  --surface-2: #fbf4ec;
-  --border: #e8d9c8;
+  --surface-2: #f9f1e7;
+  --border: #e4d0ba;
   --text: #2c1d16;
   --text-muted: #8a7363;
   --gold: #b07d22;
@@ -54,10 +52,10 @@ html.light {
   --rose: #c66f6f;
   --good: #2f9e63;
   --bad: #c4513a;
-  --bg-rgb: 246 239 231;
+  --bg-rgb: 243 235 224;
   --surface-rgb: 255 255 255;
-  --surface-2-rgb: 251 244 236;
-  --border-rgb: 232 217 200;
+  --surface-2-rgb: 249 241 231;
+  --border-rgb: 228 208 186;
   --text-rgb: 44 29 22;
   --text-muted-rgb: 138 115 99;
   --gold-rgb: 176 125 34;
@@ -80,7 +78,7 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Ambient background — warm chocolate with subtle CM red bloom */
+/* ── Ambient background — cinematic CM red bloom ─────────────────────────── */
 body::before {
   content: '';
   position: fixed;
@@ -88,20 +86,39 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(70rem 50rem at 90% -15%, rgba(204,17,17,0.08), transparent 55%),
-    radial-gradient(60rem 50rem at -15% 115%, rgba(204,17,17,0.06), transparent 50%),
-    radial-gradient(50rem 40rem at 50% 100%, rgba(180,80,60,0.04), transparent 70%);
-}
-html.light body::before {
-  background:
-    radial-gradient(70rem 50rem at 90% -15%, rgba(176,125,34,0.07), transparent 55%),
-    radial-gradient(60rem 50rem at -15% 115%, rgba(204,17,17,0.04), transparent 50%);
+    radial-gradient(80rem 60rem at 95% -10%, rgba(204,17,17,0.11), transparent 55%),
+    radial-gradient(60rem 50rem at -10% 110%, rgba(204,17,17,0.08), transparent 50%),
+    radial-gradient(40rem 40rem at 55% 105%, rgba(180,70,50,0.05), transparent 65%);
 }
 
+/* ── Film grain texture overlay ──────────────────────────────────────────── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+html.light body::before {
+  background:
+    radial-gradient(70rem 50rem at 90% -15%, rgba(176,125,34,0.08), transparent 55%),
+    radial-gradient(60rem 50rem at -15% 115%, rgba(204,17,17,0.05), transparent 50%);
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
 * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
-::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ── Reduce motion ───────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
 
 @layer components {
   .card {
@@ -114,20 +131,18 @@ html.light body::before {
     @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold
       transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none select-none;
   }
-  /* Gold accent — used for scorecards, achievements */
   .btn-gold {
     @apply btn text-[#1a0a00];
     background-image: linear-gradient(135deg, var(--gold-soft), var(--gold));
     box-shadow: 0 6px 22px -6px rgba(227,188,99,0.55);
   }
-  .btn-gold:hover { filter: brightness(1.07); box-shadow: 0 8px 26px -6px rgba(227,188,99,0.65); }
-  /* CM Red — primary CTA button (matches ChocolateModels.com brand) */
+  .btn-gold:hover { filter: brightness(1.07); box-shadow: 0 8px 28px -4px rgba(227,188,99,0.68); }
   .btn-cm {
     @apply btn text-white;
     background-image: linear-gradient(135deg, var(--cm-red-soft), var(--cm-red));
     box-shadow: 0 6px 22px -6px rgba(204,17,17,0.55);
   }
-  .btn-cm:hover { filter: brightness(1.1); box-shadow: 0 8px 26px -6px rgba(204,17,17,0.70); }
+  .btn-cm:hover { filter: brightness(1.1); box-shadow: 0 8px 28px -4px rgba(204,17,17,0.72); }
   .btn-ghost {
     @apply btn border border-line bg-surface2 text-content hover:border-cm-red/40 hover:bg-surface;
   }
@@ -158,15 +173,14 @@ html.light body::before {
   }
   .stat-num { @apply font-display text-3xl font-bold text-content; }
   .glass {
-    background: rgba(var(--surface-rgb), 0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(var(--surface-rgb), 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
   }
 }
 
 /* ── Brand text utilities ─────────────────────────────────────────────────── */
 
-/* Gold gradient text (scores, titles) */
 .gold-text {
   background: linear-gradient(120deg, var(--gold-soft), var(--gold));
   -webkit-background-clip: text;
@@ -174,7 +188,6 @@ html.light body::before {
   color: transparent;
 }
 
-/* CM red neon text — matches the ChocolateModels.com poster aesthetic */
 .cm-text {
   background: linear-gradient(120deg, #ff5555, #cc1111);
   -webkit-background-clip: text;
@@ -182,47 +195,144 @@ html.light body::before {
   color: transparent;
 }
 
-/* CM neon glow effect for brand headers */
 .cm-glow {
   color: #ff3b3b;
   text-shadow:
-    0 0 10px rgba(255,59,59,0.8),
-    0 0 30px rgba(204,17,17,0.5),
-    0 0 60px rgba(204,17,17,0.25);
+    0 0 8px rgba(255,59,59,0.9),
+    0 0 25px rgba(204,17,17,0.6),
+    0 0 55px rgba(204,17,17,0.3);
 }
+
+/* Urban display number — Bebas Neue for scoreboards and rank badges */
+.urban-num {
+  font-family: 'Bebas Neue', 'Impact', sans-serif;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* Jersey-style rank badge */
+.rank-badge {
+  font-family: 'Bebas Neue', 'Impact', sans-serif;
+  letter-spacing: 0.05em;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Tier pill — coloured indicator */
+.tier-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* Neon border glow */
+.neon-border-red {
+  border-color: rgba(204,17,17,0.7);
+  box-shadow: 0 0 0 1px rgba(204,17,17,0.3), inset 0 0 12px rgba(204,17,17,0.06);
+}
+
+.neon-border-gold {
+  border-color: rgba(227,188,99,0.7);
+  box-shadow: 0 0 0 1px rgba(227,188,99,0.3), inset 0 0 12px rgba(227,188,99,0.06);
+}
+
+/* Neon horizontal divider line */
+.neon-line {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cm-red) 30%, var(--cm-red) 70%, transparent);
+  opacity: 0.5;
+}
+
+/* ── Scrolling ticker ────────────────────────────────────────────────────── */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.ticker-track { animation: ticker-scroll 28s linear infinite; }
+.ticker-track:hover { animation-play-state: paused; }
 
 /* ── Range slider ─────────────────────────────────────────────────────────── */
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 8px;
+  height: 6px;
   border-radius: 999px;
   background: var(--surface-2);
   outline: none;
   border: 1px solid var(--border);
+  /* Filled track via accent-color fallback */
+  accent-color: var(--cm-red);
 }
 input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--cm-red-soft), var(--cm-red));
   cursor: pointer;
-  border: 3px solid var(--surface);
-  box-shadow: 0 2px 8px -1px rgba(0,0,0,0.4);
-  transition: transform 0.1s ease;
+  border: 2.5px solid var(--surface);
+  box-shadow: 0 2px 10px -1px rgba(204,17,17,0.6);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
-input[type='range']::-webkit-slider-thumb:active { transform: scale(1.15); }
+input[type='range']::-webkit-slider-thumb:hover {
+  transform: scale(1.12);
+  box-shadow: 0 2px 16px -1px rgba(204,17,17,0.75);
+}
+input[type='range']::-webkit-slider-thumb:active { transform: scale(1.2); }
 input[type='range']::-moz-range-thumb {
-  width: 22px; height: 22px; border-radius: 50%;
-  background: var(--cm-red); cursor: pointer; border: 3px solid var(--surface);
+  width: 20px; height: 20px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--cm-red-soft), var(--cm-red));
+  cursor: pointer; border: 2.5px solid var(--surface);
+  box-shadow: 0 2px 10px -1px rgba(204,17,17,0.6);
+}
+input[type='range']::-moz-range-progress {
+  background: var(--cm-red);
+  border-radius: 999px;
 }
 
+/* ── Recharts tooltip ─────────────────────────────────────────────────────── */
 .recharts-default-tooltip {
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
   color: var(--text) !important;
+  padding: 10px 14px !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4) !important;
 }
+
+/* ── Toast timer bar animation ──────────────────────────────────────────── */
+@keyframes toast-timer {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+.toast-timer-bar {
+  animation: toast-timer 4.2s linear forwards;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fade-in    { from { opacity: 0; }                        to { opacity: 1; } }
+@keyframes pop        { 0% { transform: scale(0.92); opacity: 0; } 70% { transform: scale(1.02); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes slide-up   { from { transform: translateY(18px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes toast-in   { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes shimmer    { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+@keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 8px rgba(227,188,99,0.4); } 50% { box-shadow: 0 0 22px rgba(227,188,99,0.7); } }
+@keyframes confetti   { 0% { transform: scale(1); } 50% { transform: scale(1.18) rotate(4deg); } 100% { transform: scale(1); } }
+@keyframes count-up   { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.animate-fade-in  { animation: fade-in  0.22s ease forwards; }
+.animate-pop      { animation: pop      0.28s ease forwards; }
+.animate-slide-up { animation: slide-up 0.26s ease forwards; }
+.animate-toast-in { animation: toast-in 0.32s cubic-bezier(0.22,1,0.36,1) forwards; }
+.animate-shimmer  { background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: shimmer 1.6s infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-confetti { animation: confetti 0.5s ease-in-out; }
+.animate-count-up { animation: count-up 0.35s ease forwards; }
