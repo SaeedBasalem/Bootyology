@@ -67,9 +67,9 @@ function Logo() {
       {/* CM logo — place cm-logo.png in /public to activate */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black">
         <img
-          src="/cm-logo.png"
+          src="/Bootyology/cm-logo.svg"
           alt="CM"
-          className="h-full w-full object-contain p-0.5"
+          className="h-full w-full object-contain"
           onError={(e) => {
             const el = e.currentTarget
             el.style.display = 'none'
@@ -77,7 +77,6 @@ function Logo() {
             if (fb) fb.style.display = 'flex'
           }}
         />
-        {/* Fallback: styled CM initials */}
         <span
           className="hidden h-full w-full items-center justify-center font-black text-sm tracking-tight"
           style={{ display: 'none', color: '#cc1111', fontFamily: 'serif' }}

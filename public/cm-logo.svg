@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff3b3b" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#cc1111" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="redGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff3b3b"/>
+      <stop offset="100%" stop-color="#990d0d"/>
+    </linearGradient>
+    <filter id="glowFilter">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="120" height="120" rx="22" fill="#0a0a0a"/>
+
+  <!-- Ambient glow -->
+  <ellipse cx="60" cy="60" rx="55" ry="55" fill="url(#glow)"/>
+
+  <!-- Border accent -->
+  <rect x="2" y="2" width="116" height="116" rx="20" stroke="#cc1111" stroke-width="1" stroke-opacity="0.35"/>
+
+  <!-- CM letters -->
+  <!-- C -->
+  <text
+    x="14"
+    y="84"
+    font-family="Georgia, 'Times New Roman', serif"
+    font-size="72"
+    font-weight="700"
+    font-style="italic"
+    fill="url(#redGrad)"
+    filter="url(#glowFilter)"
+    letter-spacing="-4"
+  >CM</text>
+
+  <!-- Bottom label line -->
+  <rect x="14" y="92" width="92" height="1.2" rx="1" fill="#cc1111" opacity="0.5"/>
+
+  <!-- Dot accent -->
+  <circle cx="60" cy="104" r="2.5" fill="#cc1111" opacity="0.7"/>
+  <circle cx="60" cy="104" r="5" fill="#cc1111" opacity="0.15"/>
+</svg>
