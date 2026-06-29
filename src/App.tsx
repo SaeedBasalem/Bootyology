@@ -67,7 +67,7 @@ function Logo() {
       {/* CM logo — place cm-logo.png in /public to activate */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black">
         <img
-          src="/Bootyology/cm-logo.svg"
+          src="/Bootyology/cm-logo.png"
           alt="CM"
           className="h-full w-full object-contain"
           onError={(e) => {
