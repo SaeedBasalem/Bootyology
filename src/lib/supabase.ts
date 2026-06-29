@@ -234,3 +234,14 @@ export async function uploadModelPhoto(modelId: string, file: File): Promise<str
   const { data } = supabase.storage.from('bootyology').getPublicUrl(path)
   return data.publicUrl
 }
+
+// ── Clip file upload to Supabase Storage ─────────────────────────────────────
+
+export async function uploadClipFile(clipId: string, file: File): Promise<string | null> {
+  const ext = file.name.split('.').pop() ?? 'mp4'
+  const path = `clips/${clipId}/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from('bootyology').upload(path, file, { upsert: true })
+  if (error) { console.error('Clip upload error:', error.message); return null }
+  const { data } = supabase.storage.from('bootyology').getPublicUrl(path)
+  return data.publicUrl
+}
