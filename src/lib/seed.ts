@@ -320,6 +320,17 @@ const scorecards: Scorecard[] = rawCards.map((c, i) => ({
   createdAt: now,
 }))
 
+const defaultJudgeProfile = {
+  xp: 0,
+  level: 1,
+  currentStreak: 0,
+  longestStreak: 0,
+  lastActiveDate: '',
+  totalSessions: 0,
+  gooning: 0,
+  unexpectedOrgasms: 0,
+}
+
 export function seedData(): AppData {
   return {
     version: 1,
@@ -328,5 +339,8 @@ export function seedData(): AppData {
     scorecards,
     clips: [],
     settings: { theme: 'dark', rankBy: 'average', judgeName: 'Loyalty' },
+    judgeProfile: defaultJudgeProfile,
+    dailyChallenges: [],
+    calendarEvents: [],
   }
 }

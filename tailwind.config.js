@@ -21,6 +21,10 @@ export default {
         good: 'rgb(var(--good-rgb) / <alpha-value>)',
         bad: 'rgb(var(--bad-rgb) / <alpha-value>)',
         rose: 'rgb(var(--rose-rgb) / <alpha-value>)',
+        'cm-red': {
+          DEFAULT: 'rgb(var(--cm-red-rgb) / <alpha-value>)',
+          soft: 'rgb(var(--cm-red-soft-rgb) / <alpha-value>)',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],

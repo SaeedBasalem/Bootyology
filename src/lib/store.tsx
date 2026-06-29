@@ -5,13 +5,14 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
-import type { AppData, Clip, Model, Round, Scorecard, Settings } from './types'
+import type { AppData, Clip, CalendarEvent, DailyChallenge, JudgeProfile, Model, Round, Scorecard, Settings } from './types'
 import { seedData } from './seed'
-import { computeTotal } from './scoring'
-import { uid } from './util'
+import { computeTotal, xpForScorecard, levelFromXp } from './scoring'
+import { uid, todayISO } from './util'
 import { deleteClipBlob } from './clipStore'
 import {
   fetchAllData,
@@ -40,6 +41,10 @@ type Action =
   | { type: 'SAVE_CLIP'; clip: Clip }
   | { type: 'DELETE_CLIP'; id: string }
   | { type: 'SET_SETTINGS'; settings: Partial<Settings> }
+  | { type: 'UPDATE_JUDGE_PROFILE'; profile: Partial<JudgeProfile> }
+  | { type: 'SAVE_CHALLENGE'; challenge: DailyChallenge }
+  | { type: 'SAVE_CALENDAR_EVENT'; event: CalendarEvent }
+  | { type: 'DELETE_CALENDAR_EVENT'; id: string }
   | { type: 'IMPORT'; data: AppData }
   | { type: 'RESET' }
 
@@ -94,6 +99,32 @@ function reducer(state: AppData, action: Action): AppData {
       }
     case 'SET_SETTINGS':
       return { ...state, settings: { ...state.settings, ...action.settings } }
+    case 'UPDATE_JUDGE_PROFILE': {
+      const cur = state.judgeProfile ?? defaultJudgeProfile()
+      return { ...state, judgeProfile: { ...cur, ...action.profile } }
+    }
+    case 'SAVE_CHALLENGE': {
+      const challenges = state.dailyChallenges ?? []
+      const exists = challenges.some((c) => c.id === action.challenge.id)
+      return {
+        ...state,
+        dailyChallenges: exists
+          ? challenges.map((c) => (c.id === action.challenge.id ? action.challenge : c))
+          : [...challenges, action.challenge],
+      }
+    }
+    case 'SAVE_CALENDAR_EVENT': {
+      const events = state.calendarEvents ?? []
+      const exists = events.some((e) => e.id === action.event.id)
+      return {
+        ...state,
+        calendarEvents: exists
+          ? events.map((e) => (e.id === action.event.id ? action.event : e))
+          : [...events, action.event],
+      }
+    }
+    case 'DELETE_CALENDAR_EVENT':
+      return { ...state, calendarEvents: (state.calendarEvents ?? []).filter((e) => e.id !== action.id) }
     case 'IMPORT':
       return action.data
     case 'RESET':
@@ -103,6 +134,10 @@ function reducer(state: AppData, action: Action): AppData {
   }
 }
 
+function defaultJudgeProfile(): JudgeProfile {
+  return { xp: 0, level: 1, currentStreak: 0, longestStreak: 0, lastActiveDate: '', totalSessions: 0, gooning: 0, unexpectedOrgasms: 0 }
+}
+
 function loadLocal(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -110,6 +145,9 @@ function loadLocal(): AppData {
       const parsed = JSON.parse(raw) as AppData
       if (parsed && Array.isArray(parsed.models)) {
         if (!Array.isArray(parsed.clips)) parsed.clips = []
+        if (!parsed.judgeProfile) parsed.judgeProfile = defaultJudgeProfile()
+        if (!Array.isArray(parsed.dailyChallenges)) parsed.dailyChallenges = []
+        if (!Array.isArray(parsed.calendarEvents)) parsed.calendarEvents = []
         return parsed
       }
     }
@@ -139,6 +177,11 @@ interface StoreContextValue {
   saveClip: (c: Omit<Clip, 'id' | 'createdAt'> & { id?: string }) => Clip
   deleteClip: (id: string) => void
   setSettings: (s: Partial<Settings>) => void
+  updateJudgeProfile: (p: Partial<JudgeProfile>) => void
+  updateStreak: () => void
+  saveChallenge: (c: DailyChallenge) => void
+  saveCalendarEvent: (e: Omit<CalendarEvent, 'id' | 'createdAt'> & { id?: string }) => CalendarEvent
+  deleteCalendarEvent: (id: string) => void
   importData: (d: AppData) => void
   resetData: () => void
   toasts: Toast[]
@@ -150,29 +193,33 @@ const StoreContext = createContext<StoreContextValue | null>(null)
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [data, dispatch] = useReducer(reducer, undefined, loadLocal)
+  const dataRef = useRef(data)
+  useEffect(() => { dataRef.current = data }, [data])
+
   const [toasts, setToasts] = useState<Toast[]>([])
   const [synced, setSynced] = useState(false)
   const [syncing, setSyncing] = useState(true)
 
-  // ── Initial load from Supabase ─────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
     fetchAllData()
       .then((remote) => {
         if (cancelled) return
-        // Only hydrate if Supabase has actual model data
         if (remote.models && remote.models.length > 0) {
+          const local = loadLocal()
           const merged: AppData = {
             version: 1,
             models: remote.models,
             rounds: remote.rounds ?? [],
             scorecards: remote.scorecards ?? [],
             clips: remote.clips ?? [],
-            settings: remote.settings ?? loadLocal().settings,
+            settings: remote.settings ?? local.settings,
+            judgeProfile: local.judgeProfile ?? defaultJudgeProfile(),
+            dailyChallenges: local.dailyChallenges ?? [],
+            calendarEvents: local.calendarEvents ?? [],
           }
           dispatch({ type: 'IMPORT', data: merged })
         } else if (remote.settings) {
-          // At least sync settings
           dispatch({ type: 'SET_SETTINGS', settings: remote.settings })
         }
         setSynced(true)
@@ -184,19 +231,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true }
   }, [])
 
-  // ── Persist to localStorage ────────────────────────────────────────────────
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)) } catch { /* full */ }
   }, [data])
 
-  // ── Apply theme ────────────────────────────────────────────────────────────
   useEffect(() => {
     const root = document.documentElement
     if (data.settings.theme === 'light') root.classList.add('light')
     else root.classList.remove('light')
   }, [data.settings.theme])
 
-  // ── Toast helpers ──────────────────────────────────────────────────────────
   const dismissToast = useCallback((id: string) => setToasts((t) => t.filter((x) => x.id !== id)), [])
   const toast = useCallback(
     (t: Omit<Toast, 'id'>) => {
@@ -207,7 +251,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [dismissToast],
   )
 
-  // ── Model helpers ──────────────────────────────────────────────────────────
   const saveModel: StoreContextValue['saveModel'] = useCallback((m) => {
     const model: Model = {
       ...m,
@@ -226,7 +269,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void deleteModelRemote(id)
   }, [])
 
-  // ── Round helpers ──────────────────────────────────────────────────────────
   const saveRound: StoreContextValue['saveRound'] = useCallback((r) => {
     const round: Round = { ...r, id: r.id ?? uid('r'), createdAt: (r as Round).createdAt ?? new Date().toISOString() }
     dispatch({ type: r.id ? 'UPDATE_ROUND' : 'ADD_ROUND', round })
@@ -239,7 +281,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void deleteRoundRemote(id)
   }, [])
 
-  // ── Scorecard helpers ──────────────────────────────────────────────────────
   const saveScorecard: StoreContextValue['saveScorecard'] = useCallback((c) => {
     const card: Scorecard = {
       ...c,
@@ -249,6 +290,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     dispatch({ type: 'SAVE_SCORECARD', card })
     void upsertScorecard(card)
+
+    // Award XP and update streak (only for new scorecards, not edits)
+    if (!c.id) {
+      const jp = dataRef.current.judgeProfile ?? defaultJudgeProfile()
+      const earned = xpForScorecard(card.total)
+      const newXp = jp.xp + earned
+      const today = todayISO()
+      const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+      const continued = jp.lastActiveDate === yesterday || jp.lastActiveDate === today
+      const newStreak = jp.lastActiveDate === today ? jp.currentStreak : (continued ? jp.currentStreak + 1 : 1)
+      dispatch({
+        type: 'UPDATE_JUDGE_PROFILE',
+        profile: {
+          xp: newXp,
+          level: levelFromXp(newXp),
+          totalSessions: jp.totalSessions + 1,
+          currentStreak: newStreak,
+          longestStreak: Math.max(newStreak, jp.longestStreak),
+          lastActiveDate: today,
+          gooning: card.reaction?.sessionType === 'gooning' ? jp.gooning + 1 : jp.gooning,
+          unexpectedOrgasms: card.reaction?.sessionType === 'unexpected_orgasm' ? jp.unexpectedOrgasms + 1 : jp.unexpectedOrgasms,
+        },
+      })
+    }
+
     return card
   }, [])
 
@@ -257,7 +323,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void deleteScorecardRemote(id)
   }, [])
 
-  // ── Clip helpers ───────────────────────────────────────────────────────────
   const saveClip: StoreContextValue['saveClip'] = useCallback((c) => {
     const clip: Clip = { ...c, id: c.id ?? uid('clip'), createdAt: (c as Clip).createdAt ?? new Date().toISOString() }
     dispatch({ type: 'SAVE_CLIP', clip })
@@ -271,12 +336,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void deleteClipBlob(id).catch(() => {})
   }, [])
 
-  // ── Settings ───────────────────────────────────────────────────────────────
   const setSettings = useCallback((s: Partial<Settings>) => {
     dispatch({ type: 'SET_SETTINGS', settings: s })
   }, [])
 
-  // Sync settings to Supabase whenever they change (debounced via useEffect)
+  const updateJudgeProfile = useCallback((p: Partial<JudgeProfile>) => {
+    dispatch({ type: 'UPDATE_JUDGE_PROFILE', profile: p })
+  }, [])
+
+  const updateStreak = useCallback(() => {
+    const jp = dataRef.current.judgeProfile ?? defaultJudgeProfile()
+    const today = todayISO()
+    if (jp.lastActiveDate === today) return
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+    const newStreak = jp.lastActiveDate === yesterday ? jp.currentStreak + 1 : 1
+    dispatch({
+      type: 'UPDATE_JUDGE_PROFILE',
+      profile: {
+        currentStreak: newStreak,
+        longestStreak: Math.max(newStreak, jp.longestStreak),
+        lastActiveDate: today,
+      },
+    })
+  }, [])
+
+  const saveChallenge = useCallback((c: DailyChallenge) => {
+    dispatch({ type: 'SAVE_CHALLENGE', challenge: c })
+  }, [])
+
+  const saveCalendarEvent: StoreContextValue['saveCalendarEvent'] = useCallback((e) => {
+    const event: CalendarEvent = { ...e, id: e.id ?? uid('ce'), createdAt: (e as CalendarEvent).createdAt ?? new Date().toISOString() }
+    dispatch({ type: 'SAVE_CALENDAR_EVENT', event })
+    return event
+  }, [])
+
+  const deleteCalendarEvent = useCallback((id: string) => {
+    dispatch({ type: 'DELETE_CALENDAR_EVENT', id })
+  }, [])
+
   useEffect(() => {
     if (!synced) return
     void upsertSettings(data.settings)
@@ -292,10 +389,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       saveRound, deleteRound,
       saveScorecard, deleteScorecard,
       saveClip, deleteClip,
-      setSettings, importData, resetData,
+      setSettings,
+      updateJudgeProfile, updateStreak,
+      saveChallenge, saveCalendarEvent, deleteCalendarEvent,
+      importData, resetData,
       toasts, toast, dismissToast,
     }),
-    [data, synced, syncing, saveModel, deleteModel, saveRound, deleteRound, saveScorecard, deleteScorecard, saveClip, deleteClip, setSettings, importData, resetData, toasts, toast, dismissToast],
+    [data, synced, syncing, saveModel, deleteModel, saveRound, deleteRound, saveScorecard, deleteScorecard, saveClip, deleteClip, setSettings, updateJudgeProfile, updateStreak, saveChallenge, saveCalendarEvent, deleteCalendarEvent, importData, resetData, toasts, toast, dismissToast],
   )
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

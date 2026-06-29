@@ -4,6 +4,7 @@ import {
   Trophy,
   Users,
   Film,
+  PlayCircle,
   Layers,
   Swords,
   BarChart3,
@@ -15,6 +16,9 @@ import {
   Sun,
   Menu,
   X,
+  Cloud,
+  CloudOff,
+  Loader2,
 } from 'lucide-react'
 import { StoreProvider, useStore } from './lib/store'
 import { NavProvider, useNav, type View } from './lib/nav'
@@ -27,6 +31,7 @@ import { Leaderboard } from './views/Leaderboard'
 import { Models } from './views/Models'
 import { ModelProfile } from './views/ModelProfile'
 import { Clips } from './views/Clips'
+import { WatchQueue } from './views/WatchQueue'
 import { Rounds } from './views/Rounds'
 import { Compare } from './views/Compare'
 import { Insights } from './views/Insights'
@@ -44,7 +49,8 @@ const NAV: NavItem[] = [
   { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { view: 'leaderboard', label: 'Leaderboard', icon: Trophy },
   { view: 'models', label: 'Roster', icon: Users },
-  { view: 'clips', label: 'Clips', icon: Film },
+  { view: 'queue', label: 'Watch Queue', icon: PlayCircle },
+  { view: 'clips', label: 'Clip Library', icon: Film },
   { view: 'rounds', label: 'Rounds', icon: Layers },
   { view: 'compare', label: 'Compare', icon: Swords },
   { view: 'insights', label: 'Insights', icon: BarChart3 },
@@ -53,19 +59,56 @@ const NAV: NavItem[] = [
   { view: 'data', label: 'Data & settings', icon: Settings },
 ]
 
-const BOTTOM = ['dashboard', 'leaderboard', 'models', 'clips'] as const
+const BOTTOM = ['dashboard', 'leaderboard', 'models', 'queue'] as const
 
 function Logo() {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gold-soft to-gold text-lg text-[#241606] shadow-glow">
-        🍫
+      {/* CM logo — place cm-logo.png in /public to activate */}
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black">
+        <img
+          src="/cm-logo.png"
+          alt="CM"
+          className="h-full w-full object-contain p-0.5"
+          onError={(e) => {
+            const el = e.currentTarget
+            el.style.display = 'none'
+            const fb = el.nextElementSibling as HTMLElement | null
+            if (fb) fb.style.display = 'flex'
+          }}
+        />
+        {/* Fallback: styled CM initials */}
+        <span
+          className="hidden h-full w-full items-center justify-center font-black text-sm tracking-tight"
+          style={{ display: 'none', color: '#cc1111', fontFamily: 'serif' }}
+        >
+          CM
+        </span>
       </div>
       <div className="leading-tight">
-        <p className="font-display text-lg font-bold text-content">Bootyology</p>
+        <p className="font-display text-lg font-bold cm-text">Bootyology</p>
         <p className="-mt-0.5 text-[10px] uppercase tracking-widest text-muted">Ranking Studio</p>
       </div>
     </div>
+  )
+}
+
+function SyncStatus() {
+  const { synced, syncing } = useStore()
+  if (syncing) return (
+    <span className="flex items-center gap-1.5 text-xs text-muted">
+      <Loader2 size={12} className="animate-spin" /> Syncing…
+    </span>
+  )
+  if (synced) return (
+    <span className="flex items-center gap-1.5 text-xs text-good">
+      <Cloud size={12} /> Synced
+    </span>
+  )
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-muted">
+      <CloudOff size={12} /> Offline
+    </span>
   )
 }
 
@@ -92,7 +135,7 @@ function Sidebar() {
       <div className="px-2 py-2">
         <Logo />
       </div>
-      <button className="btn-gold mt-4 w-full" onClick={() => newScorecard()}>
+      <button className="btn-cm mt-4 w-full" onClick={() => newScorecard()}>
         <Plus size={16} /> New scorecard
       </button>
       <nav className="mt-4 flex-1 space-y-1 overflow-y-auto">
@@ -112,7 +155,7 @@ function Sidebar() {
         })}
       </nav>
       <div className="flex items-center justify-between border-t border-line pt-3">
-        <span className="text-xs text-muted">Private · on-device</span>
+        <SyncStatus />
         <ThemeToggle />
       </div>
     </aside>
@@ -223,6 +266,8 @@ function MainContent() {
       return <ModelProfile />
     case 'clips':
       return <Clips />
+    case 'queue':
+      return <WatchQueue />
     case 'rounds':
       return <Rounds />
     case 'compare':

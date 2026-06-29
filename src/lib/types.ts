@@ -37,6 +37,7 @@ export interface Model {
   category?: string        // e.g. "BBW", "Latina", "MILF"
   workspace?: string       // defaults to "Chocolate Models Magazine"
   bio?: string             // extended biography
+  linkedClipIds?: string[] // clips linked to this model from the queue
   createdAt: string
 }
 
@@ -45,7 +46,20 @@ export interface Round {
   name: string
   date: string
   notes?: string
+  scheduledDate?: string   // for calendar events
+  theme?: string
   createdAt: string
+}
+
+// ── Judge Reaction — filled in after watching a clip ──────────────────────────
+export type SessionType = 'casual' | 'gooning' | 'unexpected_orgasm'
+
+export interface JudgeReaction {
+  positivity: number        // 0–10
+  comfortability: number    // 0–10
+  happiness: number         // 0–10
+  sessionType: SessionType
+  notes?: string
 }
 
 export interface Scorecard {
@@ -57,14 +71,16 @@ export interface Scorecard {
   total: number
   comments?: string
   clipId?: string
+  reaction?: JudgeReaction  // NEW: judge's personal reaction metrics
   createdAt: string
 }
 
 export type ClipSource = 'file' | 'link'
+export type WatchStatus = 'unwatched' | 'watching' | 'watched' | 'scored'
 
 export interface Clip {
   id: string
-  modelId: string
+  modelId: string           // can be '__unlinked__' for queue clips
   title: string
   source: ClipSource
   url?: string
@@ -75,6 +91,9 @@ export interface Clip {
   tags: string[]
   notes?: string
   favorite: boolean
+  watchStatus?: WatchStatus
+  queuePriority?: number    // for drag ranking in watch queue
+  watchedAt?: string        // ISO date when marked watched
   createdAt: string
 }
 
@@ -84,6 +103,46 @@ export interface Settings {
   judgeName: string
 }
 
+// ── Judge Profile — XP and levelling system ───────────────────────────────────
+export interface JudgeProfile {
+  xp: number
+  level: number             // computed from xp
+  currentStreak: number     // consecutive days judged
+  longestStreak: number
+  lastActiveDate: string    // ISO date (YYYY-MM-DD)
+  totalSessions: number
+  gooning: number           // count of gooning sessions
+  unexpectedOrgasms: number // count of unexpected orgasm sessions
+}
+
+// ── Daily Challenge ───────────────────────────────────────────────────────────
+export type ChallengeType = 'focus_criterion' | 'model_rotation' | 'discovery' | 'marathon'
+
+export interface DailyChallenge {
+  id: string
+  date: string              // YYYY-MM-DD
+  type: ChallengeType
+  title: string
+  description: string
+  targetModelId?: string
+  targetCriterion?: CriterionKey
+  completed: boolean
+  completedAt?: string
+}
+
+// ── Calendar Event ────────────────────────────────────────────────────────────
+export interface CalendarEvent {
+  id: string
+  date: string              // YYYY-MM-DD
+  title: string
+  type: 'round' | 'watch' | 'reminder'
+  modelId?: string
+  roundId?: string
+  notes?: string
+  completed: boolean
+  createdAt: string
+}
+
 export interface AppData {
   version: number
   models: Model[]
@@ -91,4 +150,7 @@ export interface AppData {
   scorecards: Scorecard[]
   clips: Clip[]
   settings: Settings
+  judgeProfile: JudgeProfile
+  dailyChallenges: DailyChallenge[]
+  calendarEvents: CalendarEvent[]
 }

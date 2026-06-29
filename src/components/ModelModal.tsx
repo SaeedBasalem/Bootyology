@@ -1,18 +1,17 @@
-import { useRef, useState } from 'react'
-import { Heart, Trash2, Camera, X, Plus, Instagram, Twitter, Globe, Link } from 'lucide-react'
+import { useRef, useState, useCallback } from 'react'
+import { Heart, Trash2, Camera, X, Plus, Instagram, Twitter, Globe, Link, Upload, Loader2, Check } from 'lucide-react'
 import { Modal, Avatar } from './ui'
 import { useStore } from '../lib/store'
 import type { Model } from '../lib/types'
-import { ACCENTS, classNames, randomAccent } from '../lib/util'
+import { ACCENTS, classNames, randomAccent, uid } from '../lib/util'
 import { uploadModelPhoto } from '../lib/supabase'
-import { uid } from '../lib/util'
 
 const EMOJI_CHOICES = ['👑', '💎', '🌹', '💗', '🌺', '🎷', '✨', '🔥', '🍫', '🌙', '💃', '🦋', '🌸', '⭐', '🎀', '🍑']
-
 const WORKSPACES = ['Chocolate Models Magazine', 'Personal Collection', 'VIP Roster', 'Discovery Board']
 const CATEGORIES = ['BBW', 'Latina', 'MILF', 'Petite', 'Ebony', 'Asian', 'Mixed', 'Curvy', 'Slim', 'Thick', 'Alt', 'Other']
 
 type Tab = 'profile' | 'details' | 'photos' | 'social'
+type UploadState = 'idle' | 'uploading' | 'done' | 'error'
 
 export function ModelModal({
   open,
@@ -24,11 +23,16 @@ export function ModelModal({
   editing?: Model | null
 }) {
   const { saveModel, deleteModel, toast } = useStore()
+
+  // Stable ID for this modal session (so new-model uploads have a consistent path)
+  const modelIdRef = useRef(editing?.id ?? uid('m'))
+
   const [tab, setTab] = useState<Tab>('profile')
   const photoInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
+  const [uploadState, setUploadState] = useState<UploadState>('idle')
 
-  // Profile tab
+  // ── Profile ───────────────────────────────────────────────────────────────
   const [name, setName] = useState(editing?.name ?? '')
   const [aliases, setAliases] = useState(editing?.aliases ?? '')
   const [emoji, setEmoji] = useState(editing?.emoji ?? '✨')
@@ -37,7 +41,7 @@ export function ModelModal({
   const [workspace, setWorkspace] = useState(editing?.workspace ?? 'Chocolate Models Magazine')
   const [favorite, setFavorite] = useState(editing?.favorite ?? false)
 
-  // Details tab
+  // ── Details ───────────────────────────────────────────────────────────────
   const [bio, setBio] = useState(editing?.bio ?? '')
   const [notes, setNotes] = useState(editing?.notes ?? '')
   const [discoveredYear, setDiscoveredYear] = useState(editing?.discoveredYear?.toString() ?? '')
@@ -47,13 +51,12 @@ export function ModelModal({
   const [height, setHeight] = useState(editing?.height ?? '')
   const [category, setCategory] = useState(editing?.category ?? '')
 
-  // Photos tab
+  // ── Photos ────────────────────────────────────────────────────────────────
   const [photoUrl, setPhotoUrl] = useState(editing?.photoUrl ?? '')
   const [photos, setPhotos] = useState<string[]>(editing?.photos ?? [])
   const [photoUrlInput, setPhotoUrlInput] = useState('')
-  const [uploading, setUploading] = useState(false)
 
-  // Social tab
+  // ── Social ────────────────────────────────────────────────────────────────
   const [instagram, setInstagram] = useState(editing?.instagram ?? '')
   const [twitter, setTwitter] = useState(editing?.twitter ?? '')
   const [onlyfans, setOnlyfans] = useState(editing?.onlyfans ?? '')
@@ -61,26 +64,57 @@ export function ModelModal({
 
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'profile', label: 'Profile' },
-    { key: 'details', label: 'Details' },
-    { key: 'photos', label: 'Photos' },
-    { key: 'social', label: 'Social' },
-  ]
+  // ── Photo upload ──────────────────────────────────────────────────────────
+  const handlePhotoFile = useCallback(
+    async (file: File, isMain: boolean) => {
+      if (!file.type.startsWith('image/')) {
+        toast({ title: 'Not an image', icon: '⚠️', message: 'Please pick a JPEG, PNG, or WebP file.' })
+        return
+      }
 
-  async function handlePhotoUpload(file: File, isMain: boolean) {
-    const modelId = editing?.id ?? uid('m')
-    setUploading(true)
-    const url = await uploadModelPhoto(modelId, file)
-    setUploading(false)
-    if (!url) {
-      toast({ title: 'Upload failed', icon: '⚠️', message: 'Could not upload photo.' })
-      return
-    }
-    if (isMain) setPhotoUrl(url)
-    else setPhotos((prev) => [...prev, url])
-    toast({ title: 'Photo uploaded', icon: '📸' })
-  }
+      // 1. Immediate local preview so the user sees the face right away
+      const localUrl = URL.createObjectURL(file)
+      if (isMain) setPhotoUrl(localUrl)
+      else setPhotos((prev) => [...prev, localUrl])
+
+      setUploadState('uploading')
+
+      // 2. Try uploading to Supabase Storage
+      const remoteUrl = await uploadModelPhoto(modelIdRef.current, file)
+
+      if (remoteUrl) {
+        // Replace the temporary blob URL with the permanent Supabase URL
+        if (isMain) {
+          setPhotoUrl(remoteUrl)
+        } else {
+          setPhotos((prev) => prev.map((p) => (p === localUrl ? remoteUrl : p)))
+        }
+        URL.revokeObjectURL(localUrl)
+        setUploadState('done')
+        toast({ title: 'Photo uploaded ✓', icon: '📸' })
+      } else {
+        // Supabase failed — fall back to a persistent data URL (base64)
+        const reader = new FileReader()
+        reader.onload = () => {
+          const dataUrl = reader.result as string
+          if (isMain) {
+            setPhotoUrl(dataUrl)
+          } else {
+            setPhotos((prev) => prev.map((p) => (p === localUrl ? dataUrl : p)))
+          }
+          URL.revokeObjectURL(localUrl)
+        }
+        reader.readAsDataURL(file)
+        setUploadState('error')
+        toast({
+          title: 'Saved in browser',
+          icon: '💾',
+          message: 'Cloud upload failed — photo stored locally. It will stay until you clear browser data.',
+        })
+      }
+    },
+    [toast],
+  )
 
   function addPhotoUrl() {
     const u = photoUrlInput.trim()
@@ -89,18 +123,26 @@ export function ModelModal({
     setPhotoUrlInput('')
   }
 
+  function setAsMain(url: string) {
+    const old = photoUrl
+    setPhotoUrl(url)
+    if (old) setPhotos((prev) => prev.map((p) => (p === url ? old : p)))
+    else setPhotos((prev) => prev.filter((p) => p !== url))
+  }
+
   function removePhoto(url: string) {
     setPhotos((prev) => prev.filter((p) => p !== url))
     if (photoUrl === url) setPhotoUrl('')
   }
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   function handleSave() {
     if (!name.trim()) {
       toast({ title: 'Name required', icon: '⚠️' })
       return
     }
     saveModel({
-      id: editing?.id,
+      id: modelIdRef.current,
       name: name.trim(),
       aliases: aliases.trim() || undefined,
       emoji,
@@ -124,7 +166,7 @@ export function ModelModal({
       workspace,
       bio: bio.trim() || undefined,
     })
-    toast({ title: editing ? 'Model updated ✨' : 'Model added to magazine 🌟', message: name.trim() })
+    toast({ title: editing ? 'Model updated ✨' : 'Added to magazine 🌟', message: name.trim() })
     onClose()
   }
 
@@ -134,6 +176,13 @@ export function ModelModal({
     toast({ title: 'Model removed', message: editing.name })
     onClose()
   }
+
+  const tabs: { key: Tab; label: string }[] = [
+    { key: 'profile', label: 'Profile' },
+    { key: 'details', label: 'Details' },
+    { key: 'photos', label: `Photos${photos.length || photoUrl ? ` (${(photoUrl ? 1 : 0) + photos.length})` : ''}` },
+    { key: 'social', label: 'Social' },
+  ]
 
   return (
     <Modal open={open} onClose={onClose} title={editing ? `Edit — ${editing.name}` : 'Add model to magazine'} wide>
@@ -145,7 +194,7 @@ export function ModelModal({
             onClick={() => setTab(t.key)}
             className={classNames(
               'flex-1 rounded-lg py-2 text-xs font-semibold transition',
-              tab === t.key ? 'bg-gold text-[#241606] shadow-sm' : 'text-muted hover:text-content',
+              tab === t.key ? 'bg-gradient-to-r from-cm-red-soft to-cm-red text-white shadow-sm' : 'text-muted hover:text-content',
             )}
           >
             {t.label}
@@ -153,31 +202,36 @@ export function ModelModal({
         ))}
       </div>
 
-      {/* ── PROFILE TAB ─────────────────────────────────────────────────────── */}
+      {/* ── PROFILE ──────────────────────────────────────────────────────────── */}
       {tab === 'profile' && (
         <div className="space-y-4">
-          {/* Avatar preview + name */}
           <div className="flex items-center gap-4">
-            <div className="relative shrink-0">
+            <div className="relative shrink-0 cursor-pointer" onClick={() => { setTab('photos') }}>
               {photoUrl ? (
-                <div className="relative h-[60px] w-[60px]">
+                <div className="group relative h-[64px] w-[64px]">
                   <img src={photoUrl} alt={name} className="h-full w-full rounded-full object-cover" style={{ border: `2px solid ${accent}` }} />
-                  <button
-                    onClick={() => setPhotoUrl('')}
-                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-surface border border-line text-muted hover:text-bad"
-                  >
-                    <X size={10} />
-                  </button>
+                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition group-hover:opacity-100">
+                    <Camera size={16} className="text-white" />
+                  </div>
                 </div>
               ) : (
-                <Avatar name={name || '?'} emoji={emoji} accent={accent} size={60} />
+                <div className="group relative">
+                  <Avatar name={name || '?'} emoji={emoji} accent={accent} size={64} />
+                  <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition group-hover:opacity-100">
+                    <Camera size={16} className="text-white" />
+                  </div>
+                </div>
               )}
+              <div className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-surface border border-line">
+                <Camera size={10} className="text-muted" />
+              </div>
             </div>
             <div className="flex-1">
               <label className="label">Stage name *</label>
               <input className="input" placeholder="Performer name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
             </div>
           </div>
+          <p className="text-[11px] text-muted -mt-2">Click the avatar to add a photo. Model photos replace this icon everywhere in the app.</p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -193,7 +247,7 @@ export function ModelModal({
           </div>
 
           <div>
-            <label className="label">Avatar glyph</label>
+            <label className="label">Avatar glyph (used when no photo is set)</label>
             <div className="flex flex-wrap gap-1.5">
               {EMOJI_CHOICES.map((e) => (
                 <button
@@ -201,7 +255,7 @@ export function ModelModal({
                   onClick={() => setEmoji(e)}
                   className={classNames(
                     'flex h-9 w-9 items-center justify-center rounded-lg border text-lg transition',
-                    emoji === e ? 'border-gold bg-surface2' : 'border-line hover:border-gold/50',
+                    emoji === e ? 'border-cm-red bg-surface2' : 'border-line hover:border-cm-red/50',
                   )}
                 >
                   {e}
@@ -243,19 +297,13 @@ export function ModelModal({
         </div>
       )}
 
-      {/* ── DETAILS TAB ─────────────────────────────────────────────────────── */}
+      {/* ── DETAILS ──────────────────────────────────────────────────────────── */}
       {tab === 'details' && (
         <div className="space-y-4">
           <div>
             <label className="label">Bio</label>
-            <textarea
-              className="input min-h-[90px] resize-y"
-              placeholder="Write a bio for this model — background, style, what makes them stand out…"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-            />
+            <textarea className="input min-h-[90px] resize-y" placeholder="Background, style, what makes them stand out…" value={bio} onChange={(e) => setBio(e.target.value)} />
           </div>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label">Category</label>
@@ -285,47 +333,69 @@ export function ModelModal({
               <input className="input" placeholder="e.g. 36-24-42" value={measurements} onChange={(e) => setMeasurements(e.target.value)} />
             </div>
           </div>
-
           <div>
             <label className="label">Private notes</label>
-            <textarea
-              className="input min-h-[70px] resize-y"
-              placeholder="Personal notes — why they stand out, what to look for…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
+            <textarea className="input min-h-[70px] resize-y" placeholder="Personal notes — why they stand out…" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
         </div>
       )}
 
-      {/* ── PHOTOS TAB ──────────────────────────────────────────────────────── */}
+      {/* ── PHOTOS ───────────────────────────────────────────────────────────── */}
       {tab === 'photos' && (
         <div className="space-y-5">
+          {/* Upload status banner */}
+          {uploadState === 'uploading' && (
+            <div className="flex items-center gap-2 rounded-xl bg-surface2 px-4 py-3 text-sm text-muted">
+              <Loader2 size={15} className="animate-spin text-cm-red" />
+              Uploading to cloud…
+            </div>
+          )}
+          {uploadState === 'done' && (
+            <div className="flex items-center gap-2 rounded-xl bg-good/10 px-4 py-3 text-sm text-good">
+              <Check size={15} /> Uploaded to Supabase Storage ✓
+            </div>
+          )}
+          {uploadState === 'error' && (
+            <div className="flex items-center gap-2 rounded-xl bg-bad/10 px-4 py-3 text-sm text-bad">
+              <Camera size={15} /> Saved in browser (cloud upload failed)
+            </div>
+          )}
+
           {/* Main profile photo */}
           <div>
-            <label className="label">Main profile photo</label>
-            <div className="flex items-start gap-3">
+            <label className="label">Main profile photo — replaces the emoji icon everywhere</label>
+            <div className="flex items-start gap-4">
+              {/* Preview */}
               <div className="shrink-0">
                 {photoUrl ? (
-                  <div className="relative h-20 w-20">
-                    <img src={photoUrl} alt="profile" className="h-full w-full rounded-xl object-cover border border-line" />
-                    <button onClick={() => setPhotoUrl('')} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-surface border border-line text-muted hover:text-bad">
+                  <div className="relative h-24 w-24">
+                    <img src={photoUrl} alt="Profile" className="h-full w-full rounded-2xl object-cover border border-line" />
+                    <button
+                      onClick={() => setPhotoUrl('')}
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-surface border border-line text-muted hover:text-bad"
+                    >
                       <X size={10} />
                     </button>
                   </div>
                 ) : (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-dashed border-line bg-surface2 text-muted">
-                    <Camera size={22} />
-                  </div>
+                  <button
+                    className="flex h-24 w-24 flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-line bg-surface2 text-muted transition hover:border-cm-red/50 hover:text-cm-red"
+                    onClick={() => photoInputRef.current?.click()}
+                  >
+                    <Camera size={24} />
+                    <span className="text-[10px]">Add photo</span>
+                  </button>
                 )}
               </div>
-              <div className="flex flex-1 flex-col gap-2">
+
+              {/* Controls */}
+              <div className="flex flex-1 flex-col gap-3">
                 <div>
-                  <label className="label">Photo URL</label>
+                  <label className="label">Paste a URL</label>
                   <input
                     className="input"
-                    placeholder="https://…"
-                    value={photoUrl}
+                    placeholder="https://… (Instagram, Twitter, etc.)"
+                    value={photoUrl.startsWith('data:') ? '' : photoUrl}
                     onChange={(e) => setPhotoUrl(e.target.value)}
                   />
                 </div>
@@ -334,44 +404,45 @@ export function ModelModal({
                   <button
                     className="btn-ghost text-xs"
                     onClick={() => photoInputRef.current?.click()}
-                    disabled={uploading}
+                    disabled={uploadState === 'uploading'}
                   >
-                    <Camera size={13} /> {uploading ? 'Uploading…' : 'Upload file'}
+                    <Upload size={13} /> Upload from device
                   </button>
                   <input
                     ref={photoInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
                     className="hidden"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) void handlePhotoUpload(f, true); e.target.value = '' }}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0]
+                      if (f) void handlePhotoFile(f, true)
+                      e.target.value = ''
+                    }}
                   />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Photo gallery */}
+          {/* Gallery */}
           <div>
-            <label className="label">Photo gallery</label>
+            <label className="label">Photo gallery (additional photos)</label>
             {photos.length > 0 && (
               <div className="mb-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
                 {photos.map((p) => (
-                  <div key={p} className="relative aspect-square">
+                  <div key={p} className="group relative aspect-square">
                     <img src={p} alt="" className="h-full w-full rounded-xl object-cover border border-line" />
-                    <button
-                      onClick={() => removePhoto(p)}
-                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-surface border border-line text-muted hover:text-bad"
-                    >
-                      <X size={10} />
-                    </button>
-                    {p !== photoUrl && (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-xl bg-black/50 opacity-0 transition group-hover:opacity-100">
                       <button
-                        onClick={() => setPhotoUrl(p)}
-                        className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white font-medium"
+                        onClick={() => setAsMain(p)}
+                        className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] text-white font-medium hover:bg-white/30"
                       >
                         Set main
                       </button>
-                    )}
+                      <button onClick={() => removePhoto(p)} className="text-white/70 hover:text-white">
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -379,7 +450,7 @@ export function ModelModal({
             <div className="flex gap-2">
               <input
                 className="input flex-1"
-                placeholder="Paste photo URL and press Add…"
+                placeholder="Paste photo URL then press Add…"
                 value={photoUrlInput}
                 onChange={(e) => setPhotoUrlInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && addPhotoUrl()}
@@ -388,29 +459,29 @@ export function ModelModal({
                 <Plus size={15} /> Add
               </button>
             </div>
-            <div className="mt-2 flex items-center gap-2">
-              <span className="text-xs text-muted">or</span>
-              <button className="btn-ghost text-xs" onClick={() => galleryInputRef.current?.click()} disabled={uploading}>
-                <Camera size={13} /> Upload photos
-              </button>
-              <input
-                ref={galleryInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? [])
-                  files.forEach((f) => void handlePhotoUpload(f, false))
-                  e.target.value = ''
-                }}
-              />
-            </div>
+            <button
+              className="btn-ghost mt-2 text-xs"
+              onClick={() => galleryInputRef.current?.click()}
+              disabled={uploadState === 'uploading'}
+            >
+              <Upload size={13} /> Upload photos from device
+            </button>
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                Array.from(e.target.files ?? []).forEach((f) => void handlePhotoFile(f, false))
+                e.target.value = ''
+              }}
+            />
           </div>
         </div>
       )}
 
-      {/* ── SOCIAL TAB ──────────────────────────────────────────────────────── */}
+      {/* ── SOCIAL ───────────────────────────────────────────────────────────── */}
       {tab === 'social' && (
         <div className="space-y-4">
           <div>
@@ -429,13 +500,11 @@ export function ModelModal({
             <label className="label flex items-center gap-1.5"><Globe size={13} /> Website</label>
             <input className="input" placeholder="https://…" value={website} onChange={(e) => setWebsite(e.target.value)} />
           </div>
-          <p className="rounded-xl bg-surface2 p-3 text-xs text-muted">
-            Social links are stored privately and only visible to you in your studio.
-          </p>
+          <p className="rounded-xl bg-surface2 p-3 text-xs text-muted">Social links are stored privately — only visible to you.</p>
         </div>
       )}
 
-      {/* ── Footer ──────────────────────────────────────────────────────────── */}
+      {/* ── Footer ───────────────────────────────────────────────────────────── */}
       <div className="mt-6 flex items-center justify-between gap-2">
         {editing ? (
           confirmDelete ? (
@@ -452,7 +521,7 @@ export function ModelModal({
         )}
         <div className="flex gap-2">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn-gold" onClick={handleSave}>
+          <button className="btn-cm" onClick={handleSave}>
             {editing ? 'Save changes' : 'Add to magazine'}
           </button>
         </div>

@@ -6,6 +6,7 @@ export type View =
   | 'models'
   | 'profile'
   | 'clips'
+  | 'queue'
   | 'rounds'
   | 'compare'
   | 'insights'

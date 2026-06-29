@@ -27,7 +27,7 @@ export function LeaderRow({ entry, metricLabel }: { entry: RankedModel; metricLa
           <span className="font-display text-lg font-bold text-muted">{entry.rank}</span>
         )}
       </div>
-      <Avatar name={entry.model.name} emoji={entry.model.emoji} accent={entry.model.accent} size={42} />
+      <Avatar name={entry.model.name} emoji={entry.model.emoji} accent={entry.model.accent} size={42} photoUrl={entry.model.photoUrl} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate font-semibold text-content group-hover:text-gold">{entry.model.name}</p>
