@@ -65,13 +65,13 @@ export interface JudgeReaction {
 export interface Scorecard {
   id: string
   modelId: string
-  roundId: string
+  clipId?: string           // primary scoring unit — the clip being judged
+  roundId?: string          // legacy grouping field (optional)
   date: string
   scores: Scores
   total: number
   comments?: string
-  clipId?: string
-  reaction?: JudgeReaction  // NEW: judge's personal reaction metrics
+  reaction?: JudgeReaction
   createdAt: string
 }
 

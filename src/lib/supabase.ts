@@ -90,7 +90,7 @@ function scorecardToRow(s: Scorecard) {
   return {
     id: s.id,
     model_id: s.modelId,
-    round_id: s.roundId,
+    round_id: s.roundId ?? null,
     date: s.date,
     scores: s.scores,
     total: s.total,
@@ -104,12 +104,12 @@ function rowToScorecard(row: Record<string, unknown>): Scorecard {
   return {
     id: row.id as string,
     modelId: row.model_id as string,
-    roundId: row.round_id as string,
+    clipId: (row.clip_id as string) || undefined,
+    roundId: (row.round_id as string) || undefined,
     date: row.date as string,
     scores: row.scores as Scorecard['scores'],
     total: row.total as number,
     comments: (row.comments as string) || undefined,
-    clipId: (row.clip_id as string) || undefined,
     createdAt: row.created_at as string,
   }
 }

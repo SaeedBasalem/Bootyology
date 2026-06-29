@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Save, Sparkles, Plus, Heart, Smile, Zap, Star } from 'lucide-react'
+import { Save, Sparkles, Plus, Heart, Smile, Zap, Star, Film, AlertCircle } from 'lucide-react'
 import { Modal } from './ui'
 import { useStore } from '../lib/store'
+import { useActions } from './ActionsProvider'
 import { CRITERIA, bandFor, emptyScores } from '../lib/criteria'
 import { computeTotal, pct, scoreTier, statsForModel, MAX_TOTAL } from '../lib/scoring'
 import type { CriterionKey, JudgeReaction, Scorecard, Scores, SessionType } from '../lib/types'
@@ -12,7 +13,6 @@ interface Props {
   onClose: () => void
   editing?: Scorecard | null
   presetModelId?: string
-  presetRoundId?: string
   presetClipId?: string
 }
 
@@ -22,25 +22,42 @@ const SESSION_TYPES: { value: SessionType; label: string; icon: string; desc: st
   { value: 'unexpected_orgasm', label: 'Unexpected', icon: '✨', desc: 'Surprised' },
 ]
 
-export function ScorecardModal({ open, onClose, editing, presetModelId, presetRoundId, presetClipId }: Props) {
-  const { data, saveScorecard, saveRound, toast } = useStore()
+const STATUS_BADGE: Record<string, string> = {
+  unwatched: '⬜',
+  watching: '▶️',
+  watched: '✅',
+  scored: '⭐',
+}
+
+export function ScorecardModal({ open, onClose, editing, presetModelId, presetClipId }: Props) {
+  const { data, saveScorecard, saveClip, toast } = useStore()
+  const actions = useActions()
 
   const activeModels = data.models.filter((m) => !m.archived)
 
-  const [modelId, setModelId] = useState(editing?.modelId ?? presetModelId ?? activeModels[0]?.id ?? '')
-  const [roundChoice, setRoundChoice] = useState(
-    editing?.roundId ?? presetRoundId ?? data.rounds[data.rounds.length - 1]?.id ?? '__new__',
+  const [modelId, setModelId] = useState(
+    editing?.modelId ?? presetModelId ?? activeModels[0]?.id ?? '',
   )
-  const [newRoundName, setNewRoundName] = useState('')
+  const [clipId, setClipId] = useState(
+    editing?.clipId ?? presetClipId ?? '',
+  )
+  const [quickTitle, setQuickTitle] = useState('')
   const [date, setDate] = useState(editing?.date ?? todayISO())
   const [scores, setScores] = useState<Scores>(editing?.scores ?? emptyScores())
   const [comments, setComments] = useState(editing?.comments ?? '')
-  const [clipId, setClipId] = useState(editing?.clipId ?? presetClipId ?? '')
 
-  const [reaction, setReaction] = useState<JudgeReaction>(editing?.reaction ?? { positivity: 7, comfortability: 7, happiness: 7, sessionType: 'casual' })
+  const [reaction, setReaction] = useState<JudgeReaction>(
+    editing?.reaction ?? { positivity: 7, comfortability: 7, happiness: 7, sessionType: 'casual' },
+  )
   const [showReaction, setShowReaction] = useState(!!(editing?.reaction))
 
-  const modelClips = data.clips.filter((c) => c.modelId === modelId)
+  const modelClips = useMemo(
+    () => data.clips.filter((c) => c.modelId === modelId),
+    [data.clips, modelId],
+  )
+
+  const isQuickAdd = clipId === '__new__'
+  const selectedClip = data.clips.find((c) => c.id === clipId)
   const total = computeTotal(scores)
   const tier = scoreTier(total)
   const percentage = pct(total)
@@ -52,31 +69,60 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetRo
     return others.length ? Math.max(...others.map((c) => c.total)) : 0
   }, [data, modelId, editing])
 
+  function changeModel(id: string) {
+    setModelId(id)
+    setClipId('') // reset clip selection when model changes
+    setQuickTitle('')
+  }
+
   function setScore(key: CriterionKey, value: number) {
     setScores((s) => ({ ...s, [key]: value }))
   }
 
   function handleSave() {
     if (!modelId) {
-      toast({ title: 'Pick a model first', icon: '⚠️', message: 'Add a model in the Roster tab if the list is empty.' })
+      toast({ title: 'Pick a model first', icon: '⚠️' })
       return
     }
-    let roundId = roundChoice
-    if (roundChoice === '__new__') {
-      const name = newRoundName.trim() || 'Untitled Round'
-      const round = saveRound({ name, date })
-      roundId = round.id
+
+    let finalClipId = clipId
+
+    if (isQuickAdd) {
+      const title = quickTitle.trim()
+      if (!title) {
+        toast({ title: 'Enter a clip title', icon: '⚠️' })
+        return
+      }
+      const clip = saveClip({
+        modelId,
+        title,
+        source: 'link',
+        tags: [],
+        favorite: false,
+        watchStatus: 'scored',
+      })
+      finalClipId = clip.id
+    } else if (!finalClipId) {
+      toast({ title: 'Select a clip to judge', icon: '🎬', message: 'Each scorecard must be linked to a clip.' })
+      return
     }
+
+    // Mark the clip as scored if it's not already
+    const clip = data.clips.find((c) => c.id === finalClipId)
+    if (clip && clip.watchStatus !== 'scored') {
+      saveClip({ ...clip, watchStatus: 'scored' })
+    }
+
     const card = saveScorecard({
       id: editing?.id,
       modelId,
-      roundId,
+      clipId: finalClipId,
       date,
       scores,
       comments: comments.trim() || undefined,
-      clipId: clipId || undefined,
       reaction: showReaction ? reaction : undefined,
     })
+
     const model = data.models.find((m) => m.id === modelId)
     const isRecord = total > prevBest && prevBest > 0
     if (percentage >= 90) {
@@ -89,21 +135,20 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetRo
     onClose()
   }
 
+  const model = activeModels.find((m) => m.id === modelId)
+
   return (
     <Modal open={open} onClose={onClose} wide title={editing ? 'Edit scorecard' : 'New scorecard'}>
-      <div className="grid gap-4 sm:grid-cols-3">
+
+      {/* ── Model + Date row ─────────────────────────────────────────────────── */}
+      <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label">Model</label>
-          <select className="input" value={modelId} onChange={(e) => { setModelId(e.target.value); setClipId('') }}>
+          <select className="input" value={modelId} onChange={(e) => changeModel(e.target.value)}>
             {activeModels.length === 0 && <option value="">No models yet</option>}
-            {activeModels.map((m) => (<option key={m.id} value={m.id}>{m.emoji} {m.name}</option>))}
-          </select>
-        </div>
-        <div>
-          <label className="label">Round / theme</label>
-          <select className="input" value={roundChoice} onChange={(e) => setRoundChoice(e.target.value)}>
-            {data.rounds.map((r) => (<option key={r.id} value={r.id}>{r.name}</option>))}
-            <option value="__new__">＋ New themed round…</option>
+            {activeModels.map((m) => (
+              <option key={m.id} value={m.id}>{m.emoji} {m.name}</option>
+            ))}
           </select>
         </div>
         <div>
@@ -112,24 +157,70 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetRo
         </div>
       </div>
 
-      {roundChoice === '__new__' && (
-        <div className="mt-3 animate-fade-in">
-          <label className="label">New round name</label>
-          <input className="input" placeholder="e.g. Summer Beach, Golden Hour, Latex Night…" value={newRoundName} onChange={(e) => setNewRoundName(e.target.value)} />
-        </div>
-      )}
+      {/* ── Clip picker ──────────────────────────────────────────────────────── */}
+      <div className="mt-4">
+        <label className="label flex items-center gap-1.5">
+          <Film size={13} className="text-gold" /> Clip being judged
+          <span className="ml-0.5 text-[10px] font-normal text-bad">required</span>
+        </label>
 
-      {modelClips.length > 0 && (
-        <div className="mt-3">
-          <label className="label">Clip judged (optional)</label>
-          <select className="input" value={clipId} onChange={(e) => setClipId(e.target.value)}>
-            <option value="">— not linked to a clip —</option>
-            {modelClips.map((c) => (<option key={c.id} value={c.id}>🎬 {c.title}</option>))}
-          </select>
-        </div>
-      )}
+        {modelClips.length === 0 && !editing?.clipId ? (
+          <div className="flex items-center gap-3 rounded-xl border border-dashed border-line bg-surface2 p-4">
+            <AlertCircle size={18} className="shrink-0 text-muted" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-content">
+                {model ? `${model.emoji} ${model.name}` : 'This model'} has no clips yet
+              </p>
+              <p className="text-xs text-muted">Add a clip first, then score it.</p>
+            </div>
+            <button
+              className="btn-ghost ml-auto shrink-0 text-xs"
+              onClick={() => {
+                onClose()
+                actions.newClip({ modelId })
+              }}
+            >
+              <Plus size={13} /> Add clip
+            </button>
+          </div>
+        ) : (
+          <>
+            <select
+              className="input"
+              value={clipId}
+              onChange={(e) => { setClipId(e.target.value); setQuickTitle('') }}
+            >
+              <option value="">— select a clip —</option>
+              {modelClips.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {STATUS_BADGE[c.watchStatus ?? 'unwatched']} {c.title}
+                </option>
+              ))}
+              <option value="__new__">＋ Quick-add new clip…</option>
+            </select>
 
-      {/* Live total banner */}
+            {isQuickAdd && (
+              <input
+                className="input mt-2 animate-fade-in"
+                placeholder="Clip title (e.g. IG Reel Jul 2025, TikTok Dance, OnlyFans Drop…)"
+                value={quickTitle}
+                onChange={(e) => setQuickTitle(e.target.value)}
+                autoFocus
+              />
+            )}
+
+            {selectedClip && (
+              <p className="mt-1.5 text-xs text-muted">
+                {selectedClip.source === 'file' ? '📁 File' : '🔗 Link'}
+                {selectedClip.tags.length > 0 && ` · ${selectedClip.tags.join(', ')}`}
+                {selectedClip.notes && ` · ${selectedClip.notes}`}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ── Live total banner ─────────────────────────────────────────────────── */}
       <div className="mt-5 flex items-center gap-4 rounded-2xl border border-line bg-surface2 p-4">
         <div className="text-center">
           <div className="font-display text-4xl font-bold" style={{ color: tier.color }}>{total}</div>
@@ -143,10 +234,16 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetRo
           <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface">
             <div className="h-full rounded-full transition-all duration-300" style={{ width: `${percentage}%`, background: tier.color }} />
           </div>
+          {prevBest > 0 && (
+            <p className="mt-1 text-xs text-muted">
+              Personal best: <span className="text-content font-semibold">{prevBest}</span>
+              {total > prevBest && <span className="ml-1 text-good"> ▲ new record!</span>}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Criteria sliders */}
+      {/* ── Criteria sliders ─────────────────────────────────────────────────── */}
       <div className="mt-5 space-y-5">
         {CRITERIA.map((c) => {
           const value = scores[c.key]
@@ -158,15 +255,31 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetRo
                   <span className="text-sm font-semibold text-content">{c.num}. {c.label}</span>
                   <span className="ml-2 text-xs text-muted">{c.focus}</span>
                 </div>
-                <span className={classNames('shrink-0 rounded-lg px-2.5 py-1 font-display text-lg font-bold', c.isDeduction ? 'text-bad' : 'text-gold')} style={{ background: 'var(--surface-2)' }}>
+                <span
+                  className={classNames(
+                    'shrink-0 rounded-lg px-2.5 py-1 font-display text-lg font-bold',
+                    c.isDeduction ? 'text-bad' : 'text-gold',
+                  )}
+                  style={{ background: 'var(--surface-2)' }}
+                >
                   {value > 0 && !c.isDeduction ? '+' : ''}{value}
                   <span className="ml-1 text-xs font-normal text-muted">/{c.isDeduction ? c.min : c.max}</span>
                 </span>
               </div>
-              <input type="range" className="mt-3" min={c.min} max={c.max} step={1} value={value} onChange={(e) => setScore(c.key, Number(e.target.value))} />
+              <input
+                type="range"
+                className="mt-3"
+                min={c.min}
+                max={c.max}
+                step={1}
+                value={value}
+                onChange={(e) => setScore(c.key, Number(e.target.value))}
+              />
               {band && (
                 <p className="mt-2 text-xs text-muted">
-                  <span className="font-semibold text-content">{c.isDeduction ? '' : `${band.min}–${band.max}: `}</span>
+                  <span className="font-semibold text-content">
+                    {c.isDeduction ? '' : `${band.min}–${band.max}: `}
+                  </span>
                   {band.label}
                 </p>
               )}
@@ -175,13 +288,18 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetRo
         })}
       </div>
 
-      {/* Comments */}
+      {/* ── Comments ─────────────────────────────────────────────────────────── */}
       <div className="mt-5">
         <label className="label">Judge's comments</label>
-        <textarea className="input min-h-[88px] resize-y" placeholder="Overall impression, standout moments, what to watch next round…" value={comments} onChange={(e) => setComments(e.target.value)} />
+        <textarea
+          className="input min-h-[88px] resize-y"
+          placeholder="Overall impression, standout moments…"
+          value={comments}
+          onChange={(e) => setComments(e.target.value)}
+        />
       </div>
 
-      {/* ── Judge Reaction ──────────────────────────────────────────────────── */}
+      {/* ── Judge Reaction ───────────────────────────────────────────────────── */}
       <div className="mt-5 overflow-hidden rounded-2xl border border-line bg-surface">
         <button
           className="flex w-full items-center justify-between p-4 text-left transition hover:bg-surface2"
@@ -229,13 +347,25 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetRo
                   <span className="flex items-center gap-1.5 text-xs font-semibold text-muted">{icon} {label}</span>
                   <span className="font-display text-lg font-bold" style={{ color }}>{reaction[key]}/10</span>
                 </div>
-                <input type="range" min={0} max={10} step={1} value={reaction[key]} onChange={(e) => setReaction((r) => ({ ...r, [key]: Number(e.target.value) }))} />
+                <input
+                  type="range"
+                  min={0}
+                  max={10}
+                  step={1}
+                  value={reaction[key]}
+                  onChange={(e) => setReaction((r) => ({ ...r, [key]: Number(e.target.value) }))}
+                />
               </div>
             ))}
 
             <div>
               <label className="label">Reaction notes (optional)</label>
-              <input className="input" placeholder="Anything that stood out about this session…" value={reaction.notes ?? ''} onChange={(e) => setReaction((r) => ({ ...r, notes: e.target.value }))} />
+              <input
+                className="input"
+                placeholder="Anything that stood out about this session…"
+                value={reaction.notes ?? ''}
+                onChange={(e) => setReaction((r) => ({ ...r, notes: e.target.value }))}
+              />
             </div>
           </div>
         )}

@@ -5,7 +5,7 @@ import { ClipFormModal, ClipPlayerModal } from './ClipModals'
 import type { Clip, Model, Scorecard } from '../lib/types'
 
 interface ActionsValue {
-  newScorecard: (opts?: { modelId?: string; roundId?: string; clipId?: string }) => void
+  newScorecard: (opts?: { modelId?: string; clipId?: string }) => void
   editScorecard: (card: Scorecard) => void
   newModel: () => void
   editModel: (model: Model) => void
@@ -20,7 +20,6 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
   const [scorecardOpen, setScorecardOpen] = useState(false)
   const [editingCard, setEditingCard] = useState<Scorecard | null>(null)
   const [presetModelId, setPresetModelId] = useState<string | undefined>()
-  const [presetRoundId, setPresetRoundId] = useState<string | undefined>()
   const [presetClipId, setPresetClipId] = useState<string | undefined>()
 
   const [modelOpen, setModelOpen] = useState(false)
@@ -38,14 +37,12 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
       newScorecard: (opts) => {
         setEditingCard(null)
         setPresetModelId(opts?.modelId)
-        setPresetRoundId(opts?.roundId)
         setPresetClipId(opts?.clipId)
         setScorecardOpen(true)
       },
       editScorecard: (card) => {
         setEditingCard(card)
         setPresetModelId(undefined)
-        setPresetRoundId(undefined)
         setPresetClipId(undefined)
         setScorecardOpen(true)
       },
@@ -85,7 +82,6 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
           onClose={() => setScorecardOpen(false)}
           editing={editingCard}
           presetModelId={presetModelId}
-          presetRoundId={presetRoundId}
           presetClipId={presetClipId}
         />
       )}
@@ -105,7 +101,7 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
         onEdit={(clip) => value.editClip(clip)}
         onScore={(clip) => {
           setPlayerOpen(false)
-          value.newScorecard({ modelId: clip.modelId, roundId: clip.roundId, clipId: clip.id })
+          value.newScorecard({ modelId: clip.modelId, clipId: clip.id })
         }}
       />
     </ActionsContext.Provider>

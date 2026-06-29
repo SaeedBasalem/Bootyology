@@ -155,8 +155,8 @@ export function similarModels(data: AppData, modelId: string, n = 3): { model: M
 
 export function trendCommentary(data: AppData, modelId: string): string {
   const stats = statsForModel(data, modelId)
-  if (stats.rounds === 0) return `${stats.model.name} hasn't been scored yet. Add her to a round to begin tracking.`
-  if (stats.rounds === 1) return `${stats.model.name} made her debut with ${stats.best}/${MAX_TOTAL} — a strong opening statement. Watch for her in the next round.`
+  if (stats.rounds === 0) return `${stats.model.name} hasn't been scored yet. Add a clip for her and score it to start tracking.`
+  if (stats.rounds === 1) return `${stats.model.name} made her debut with ${stats.best}/${MAX_TOTAL} — a strong opening statement. Score another clip to track her trajectory.`
 
   const trend = stats.trend
   const pctScore = pct(stats.average)
@@ -167,15 +167,15 @@ export function trendCommentary(data: AppData, modelId: string): string {
 
   const openers = [
     `${stats.model.name} is ${direction} in the rankings.`,
-    `Across ${stats.rounds} rounds, ${stats.model.name} has been a ${tierWord} performer.`,
+    `Across ${stats.rounds} scored clips, ${stats.model.name} has been a ${tierWord} performer.`,
     `The judge's latest read on ${stats.model.name}: ${direction}.`,
   ]
   const opener = openers[stats.rounds % openers.length]
 
   let detail = ''
-  if (trend > 0) detail = ` Her most recent scorecard (+${trend}) shows clear upward momentum — one to keep watching.`
-  else if (trend < 0) detail = ` The latest round showed a dip of ${Math.abs(trend)} — a minor correction or a new challenger closing the gap?`
-  else detail = ` Consistent across rounds — a reliable presence at ${pctScore}%.`
+  if (trend > 0) detail = ` Her most recent clip score (+${trend}) shows clear upward momentum — one to keep watching.`
+  else if (trend < 0) detail = ` The latest clip showed a dip of ${Math.abs(trend)} — a minor correction or a new challenger closing the gap?`
+  else detail = ` Consistent across clips — a reliable presence at ${pctScore}%.`
 
   const best = stats.best
   const latestCard = stats.latestCard
