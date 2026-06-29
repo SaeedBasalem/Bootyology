@@ -8,12 +8,25 @@ export function Avatar({
   emoji,
   accent,
   size = 44,
+  photoUrl,
 }: {
   name: string
   emoji?: string
   accent: string
   size?: number
+  photoUrl?: string
 }) {
+  if (photoUrl) {
+    return (
+      <div
+        className="shrink-0 overflow-hidden rounded-full"
+        style={{ width: size, height: size, border: `2px solid ${accent}` }}
+        title={name}
+      >
+        <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
+      </div>
+    )
+  }
   return (
     <div
       className="flex shrink-0 items-center justify-center rounded-full font-semibold"

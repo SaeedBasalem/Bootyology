@@ -16,20 +16,34 @@ export interface Model {
   id: string
   name: string
   aliases?: string
-  emoji: string // avatar glyph / initials fallback handled in UI
-  accent: string // hex accent for the avatar ring
+  emoji: string
+  accent: string
   tags: string[]
   discoveredYear?: number
   notes?: string
   favorite: boolean
   archived: boolean
+  // ── Extended profile (Chocolate Models Magazine) ──────────────────────────
+  photoUrl?: string        // main profile photo URL
+  photos?: string[]        // additional photo gallery URLs
+  instagram?: string
+  twitter?: string
+  onlyfans?: string
+  website?: string
+  nationality?: string
+  birthday?: string        // YYYY-MM-DD or free text
+  measurements?: string    // e.g. "36-24-42"
+  height?: string          // e.g. "5'6\""
+  category?: string        // e.g. "BBW", "Latina", "MILF"
+  workspace?: string       // defaults to "Chocolate Models Magazine"
+  bio?: string             // extended biography
   createdAt: string
 }
 
 export interface Round {
   id: string
-  name: string // theme name, e.g. "Summer Beach"
-  date: string // ISO date
+  name: string
+  date: string
   notes?: string
   createdAt: string
 }
@@ -42,7 +56,7 @@ export interface Scorecard {
   scores: Scores
   total: number
   comments?: string
-  clipId?: string // the clip that was judged for this verdict (optional)
+  clipId?: string
   createdAt: string
 }
 
@@ -53,11 +67,11 @@ export interface Clip {
   modelId: string
   title: string
   source: ClipSource
-  url?: string // for source 'link'
-  fileName?: string // for source 'file' (blob lives in IndexedDB under the clip id)
+  url?: string
+  fileName?: string
   mimeType?: string
-  size?: number // bytes, for 'file'
-  roundId?: string // optional themed round this clip belongs to
+  size?: number
+  roundId?: string
   tags: string[]
   notes?: string
   favorite: boolean
