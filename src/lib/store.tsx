@@ -205,23 +205,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     fetchAllData()
       .then((remote) => {
         if (cancelled) return
-        if (remote.models && remote.models.length > 0) {
-          const local = loadLocal()
-          const merged: AppData = {
-            version: 1,
-            models: remote.models,
-            rounds: remote.rounds ?? [],
-            scorecards: remote.scorecards ?? [],
-            clips: remote.clips ?? [],
-            settings: remote.settings ?? local.settings,
-            judgeProfile: local.judgeProfile ?? defaultJudgeProfile(),
-            dailyChallenges: local.dailyChallenges ?? [],
-            calendarEvents: local.calendarEvents ?? [],
-          }
-          dispatch({ type: 'IMPORT', data: merged })
-        } else if (remote.settings) {
-          dispatch({ type: 'SET_SETTINGS', settings: remote.settings })
+        const local = loadLocal()
+
+        // Merge: remote wins for shared IDs, local-only items are preserved.
+        function mergeById<T extends { id: string }>(loc: T[], rem: T[]): T[] {
+          const map = new Map<string, T>(loc.map((x) => [x.id, x]))
+          rem.forEach((x) => map.set(x.id, x)) // remote overwrites same-id local
+          return Array.from(map.values())
         }
+
+        const models = mergeById(local.models, remote.models ?? [])
+        const rounds = mergeById(local.rounds, remote.rounds ?? [])
+        const scorecards = mergeById(local.scorecards, remote.scorecards ?? [])
+        const clips = mergeById(local.clips, remote.clips ?? [])
+
+        // Push any local-only records up to Supabase so they sync next time
+        const remoteModelIds = new Set((remote.models ?? []).map((m) => m.id))
+        const remoteRoundIds = new Set((remote.rounds ?? []).map((r) => r.id))
+        const remoteScorecardIds = new Set((remote.scorecards ?? []).map((s) => s.id))
+        const remoteClipIds = new Set((remote.clips ?? []).map((c) => c.id))
+        local.models.filter((m) => !remoteModelIds.has(m.id)).forEach((m) => void upsertModel(m))
+        local.rounds.filter((r) => !remoteRoundIds.has(r.id)).forEach((r) => void upsertRound(r))
+        local.scorecards.filter((s) => !remoteScorecardIds.has(s.id)).forEach((s) => void upsertScorecard(s))
+        local.clips.filter((c) => !remoteClipIds.has(c.id)).forEach((c) => void upsertClip(c))
+
+        const merged: AppData = {
+          version: 1,
+          models,
+          rounds,
+          scorecards,
+          clips,
+          settings: remote.settings ?? local.settings,
+          judgeProfile: local.judgeProfile ?? defaultJudgeProfile(),
+          dailyChallenges: local.dailyChallenges ?? [],
+          calendarEvents: local.calendarEvents ?? [],
+        }
+        dispatch({ type: 'IMPORT', data: merged })
         setSynced(true)
         setSyncing(false)
       })
