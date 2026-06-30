@@ -22,13 +22,22 @@ export function LeaderRow({ entry, metricLabel }: { entry: RankedModel; metricLa
     <button
       onClick={() => go('profile', entry.model.id)}
       className={classNames(
-        'group flex w-full items-center gap-3 rounded-xl border border-line bg-surface p-3 text-left transition-all duration-200',
+        'group relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-line bg-surface p-3 text-left transition-all duration-200',
         'hover:border-gold/50 hover:bg-surface2 hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(227,188,99,0.10)]',
         entry.rank === 1 && 'shadow-[0_0_0_1px_rgba(227,188,99,0.25),0_4px_20px_rgba(227,188,99,0.12)]',
       )}
     >
+      {/* Model photo as subtle background */}
+      {entry.model.photoUrl && (
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.06] bg-cover bg-right transition duration-300 group-hover:opacity-[0.1]"
+          style={{ backgroundImage: `url(${entry.model.photoUrl})` }}
+        />
+      )}
+      {/* Left accent stripe */}
+      <div className="pointer-events-none absolute left-0 top-0 h-full w-0.5 rounded-r" style={{ background: entry.model.accent }} />
       {/* Rank badge — jersey number style */}
-      <div className="flex w-10 shrink-0 items-center justify-center">
+      <div className="relative flex w-10 shrink-0 items-center justify-center">
         {isTop3 && rankMeta ? (
           <div
             className="rank-badge h-9 w-9 rounded-lg text-lg"

@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { BarChart3, TrendingUp, Award, Sparkles, Calendar, TrendingDown } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
-import { SectionHeader, EmptyState, Stat, Avatar } from '../components/ui'
+import { EmptyState, Stat, Avatar } from '../components/ui'
 import { CriteriaBarChart } from '../components/Charts'
 import { CRITERIA, CRITERIA_BY_KEY } from '../lib/criteria'
 import { criterionAverages, mostImproved, scoreTier, scoreHeatmap, seasonalReports, rankingsHistory } from '../lib/scoring'
@@ -148,8 +148,12 @@ export function Insights() {
 
   if (cards.length === 0) {
     return (
-      <div>
-        <SectionHeader title="Insights" subtitle="Patterns across your whole roster." />
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-line bg-black p-6">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">Analytics Studio</p>
+          <h1 className="mt-1 font-display text-2xl font-bold text-white">Insights</h1>
+          <p className="mt-1 text-sm text-white/40">Patterns across your whole roster.</p>
+        </div>
         <EmptyState icon={<BarChart3 size={28} />} title="No data yet" message="Score a few rounds and trends will appear here." />
       </div>
     )
@@ -171,23 +175,42 @@ export function Insights() {
   const heatmapDays = scoreHeatmap(data)
   const seasonal = seasonalReports(data)
 
-  const TABS = [
-    { key: 'overview' as const, label: 'Overview', icon: <BarChart3 size={13} /> },
-    { key: 'heatmap' as const, label: 'Heatmap', icon: <Calendar size={13} /> },
-    { key: 'seasonal' as const, label: 'Seasonal', icon: <TrendingUp size={13} /> },
-    { key: 'timeline' as const, label: 'Timeline', icon: <Sparkles size={13} /> },
+  const TABS: { key: typeof tab; label: string; icon: React.ReactNode; color: string; desc: string }[] = [
+    { key: 'overview',  label: 'Overview',  icon: <BarChart3 size={13} />, color: '#7aa7d8',      desc: 'Averages & standouts' },
+    { key: 'heatmap',   label: 'Heatmap',   icon: <Calendar size={13} />,  color: 'var(--cm-red-soft)', desc: 'Judging activity' },
+    { key: 'seasonal',  label: 'Seasonal',  icon: <TrendingUp size={13} />,color: 'var(--good)',   desc: 'Quarterly stats' },
+    { key: 'timeline',  label: 'Timeline',  icon: <Sparkles size={13} />,  color: 'var(--gold)',   desc: 'Rankings history' },
   ]
 
-  return (
-    <div className="space-y-6">
-      <SectionHeader title="Insights" subtitle="Patterns, trends, and history across your whole roster." />
+  const activeTab = TABS.find((t) => t.key === tab)!
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={classNames('btn py-2 px-3 text-xs', tab === t.key ? 'btn-cm' : 'btn-ghost')}>
-            {t.icon} {t.label}
-          </button>
-        ))}
+  return (
+    <div className="space-y-5">
+      {/* Header with active-tab colour accent */}
+      <div className="relative overflow-hidden rounded-2xl border border-line bg-black">
+        <div className="pointer-events-none absolute inset-0 opacity-25 transition-all duration-500"
+          style={{ background: `radial-gradient(ellipse 70% 80% at 5% 50%, ${activeTab.color}55, transparent 65%)` }} />
+        <div className="relative px-6 py-5">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">Analytics Studio</p>
+          <h1 className="mt-1 font-display text-2xl font-bold text-white sm:text-3xl">Insights</h1>
+          <p className="mt-1 text-sm text-white/40">Patterns, trends, and history across your whole roster.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={classNames('flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold transition')}
+                style={tab === t.key
+                  ? { borderColor: `${t.color}60`, background: `${t.color}18`, color: t.color }
+                  : { borderColor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)' }
+                }
+              >
+                {t.icon} {t.label}
+                {tab === t.key && <span className="ml-1 text-[10px] opacity-60">— {t.desc}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {tab === 'overview' && (

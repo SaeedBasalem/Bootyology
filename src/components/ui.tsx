@@ -142,12 +142,16 @@ export function EmptyState({
   action?: ReactNode
 }) {
   return (
-    <div className="card flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface2 text-gold">
+    <div className="relative flex flex-col items-center justify-center gap-4 overflow-hidden rounded-2xl border-2 border-dashed border-line px-6 py-16 text-center">
+      <div className="pointer-events-none absolute inset-0 opacity-20"
+        style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(227,188,99,0.15), transparent 70%)' }} />
+      <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl border border-gold/25 bg-gold/8 text-gold shadow-[0_0_20px_rgba(227,188,99,0.12)]">
         {icon}
       </div>
-      <h3 className="font-display text-xl font-semibold text-content">{title}</h3>
-      <p className="max-w-sm text-sm text-muted">{message}</p>
+      <div className="relative">
+        <h3 className="font-display text-xl font-semibold text-content">{title}</h3>
+        <p className="mt-1 max-w-sm text-sm text-muted">{message}</p>
+      </div>
       {action}
     </div>
   )
