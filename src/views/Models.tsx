@@ -164,11 +164,12 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
             <button onClick={() => go('profile', m.id)} className="block w-full">
               {m.photoUrl ? (
                 <div className="relative h-60 w-full overflow-hidden">
-                  {/* Auto-cycle through all model photos every 4.5 s */}
+                  {/* Auto-cycle through all model photos; stagger start by card index so cards don't all flip simultaneously */}
                   <CyclingPhoto
                     photos={[m.photoUrl, ...(m.photos ?? [])]}
                     alt={m.name}
                     intervalMs={4500}
+                    startDelay={i * 800}
                   />
                   {/* Subtle scale on hover via the group class */}
                   <div className="absolute inset-0 transition duration-500 group-hover:scale-105 pointer-events-none" />
@@ -291,7 +292,7 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
                 </div>
                 <div className="rounded-lg bg-surface2 py-2">
                   <p className="urban-num text-2xl text-content">{stats.rounds}</p>
-                  <p className="text-[10px] uppercase tracking-wide text-muted">Clips</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted">Scores</p>
                 </div>
               </div>
 

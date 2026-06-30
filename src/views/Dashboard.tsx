@@ -44,11 +44,21 @@ export function Dashboard() {
   const scoredToday = todayScoredCount(data)
   const streak = data.judgeProfile?.currentStreak ?? 0
 
-  // All model photos (ranked first, then their extras) for the scrolling strip
+  // All model photos (ranked first, then their extras) for the scrolling strip.
+  // The strip is padded so ONE logical set is always wider than any realistic screen
+  // (min ~2800 px) — this prevents both halves of the doubled strip from being
+  // visible simultaneously, which would look like repeated photos.
   const heroStripPhotos = data.models
     .filter((m) => !m.archived && m.photoUrl)
     .sort((a, b) => statsForModel(data, b.id).average - statsForModel(data, a.id).average)
     .flatMap((m) => [m.photoUrl!, ...(m.photos ?? [])])
+
+  const PHOTO_SLOT_PX = 163  // 160 px wide + 3 px gap
+  const MIN_SET_PX = 2800
+  const stripCopies = heroStripPhotos.length > 0
+    ? Math.max(1, Math.ceil(MIN_SET_PX / (heroStripPhotos.length * PHOTO_SLOT_PX)))
+    : 1
+  const paddedStrip = Array.from({ length: stripCopies }).flatMap(() => heroStripPhotos)
 
   function completeChallenge() {
     if (!challenge || challenge.completed) return
@@ -69,8 +79,8 @@ export function Dashboard() {
         {heroStripPhotos.length > 0 ? (
           <div className="absolute inset-0 overflow-hidden">
             <div className="photo-strip-track flex h-full" style={{ gap: '3px' }}>
-              {/* Duplicate the array so translateX(-50%) creates a seamless loop */}
-              {[...heroStripPhotos, ...heroStripPhotos].map((url, i) => (
+              {/* Double the padded set so translateX(-50%) creates a seamless loop */}
+              {[...paddedStrip, ...paddedStrip].map((url, i) => (
                 <div
                   key={i}
                   className="shrink-0 h-full bg-cover bg-top"

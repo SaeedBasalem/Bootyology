@@ -20,7 +20,7 @@ import { formatDate } from '../lib/util'
 
 export function ModelProfile() {
   const { data, deleteScorecard, toast } = useStore()
-  const { modelId, go } = useNav()
+  const { modelId, prevView, go } = useNav()
   const { editModel, newScorecard, editScorecard, newClip, playClip } = useActions()
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
@@ -102,7 +102,7 @@ export function ModelProfile() {
         </div>
       )}
 
-      <button onClick={() => go('leaderboard')} className="btn-quiet -ml-2">
+      <button onClick={() => go(prevView)} className="btn-quiet -ml-2">
         <ArrowLeft size={16} /> Back
       </button>
 

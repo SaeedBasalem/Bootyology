@@ -105,7 +105,7 @@ export function Rounds() {
                       </p>
                     </div>
                   </button>
-                  <button className="btn-ghost hidden sm:inline-flex" onClick={() => newScorecard()}>
+                  <button className="btn-ghost hidden sm:inline-flex" onClick={() => newScorecard({ roundId: round.id })}>
                     <ClipboardPlus size={15} /> Score
                   </button>
                   <button onClick={() => { setEditing(round); setOpen(true) }} className="btn-quiet h-9 w-9 p-0" aria-label="Edit">
@@ -122,7 +122,7 @@ export function Rounds() {
                     {cards.length === 0 ? (
                       <div className="flex flex-col items-center gap-2 py-4 text-center">
                         <p className="text-sm text-muted">No scorecards in this round yet.</p>
-                        <button className="btn-ghost" onClick={() => newScorecard()}>
+                        <button className="btn-ghost" onClick={() => newScorecard({ roundId: round.id })}>
                           <ClipboardPlus size={15} /> Add the first one
                         </button>
                       </div>

@@ -16,6 +16,7 @@ export type View =
 
 interface NavValue {
   view: View
+  prevView: View
   modelId: string | null
   go: (view: View, modelId?: string | null) => void
 }
@@ -24,19 +25,22 @@ const NavContext = createContext<NavValue | null>(null)
 
 export function NavProvider({ children }: { children: ReactNode }) {
   const [view, setView] = useState<View>('dashboard')
+  const [prevView, setPrevView] = useState<View>('models')
   const [modelId, setModelId] = useState<string | null>(null)
 
   const value = useMemo<NavValue>(
     () => ({
       view,
+      prevView,
       modelId,
       go: (v, id = null) => {
+        setPrevView(view)
         setView(v)
         if (v === 'profile') setModelId(id)
         window.scrollTo({ top: 0, behavior: 'smooth' })
       },
     }),
-    [view, modelId],
+    [view, prevView, modelId],
   )
 
   return <NavContext.Provider value={value}>{children}</NavContext.Provider>

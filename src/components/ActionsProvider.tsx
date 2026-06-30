@@ -5,7 +5,7 @@ import { ClipFormModal, ClipPlayerModal } from './ClipModals'
 import type { Clip, Model, Scorecard } from '../lib/types'
 
 interface ActionsValue {
-  newScorecard: (opts?: { modelId?: string; clipId?: string }) => void
+  newScorecard: (opts?: { modelId?: string; clipId?: string; roundId?: string }) => void
   editScorecard: (card: Scorecard) => void
   newModel: () => void
   editModel: (model: Model) => void
@@ -21,6 +21,7 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
   const [editingCard, setEditingCard] = useState<Scorecard | null>(null)
   const [presetModelId, setPresetModelId] = useState<string | undefined>()
   const [presetClipId, setPresetClipId] = useState<string | undefined>()
+  const [presetRoundId, setPresetRoundId] = useState<string | undefined>()
 
   const [modelOpen, setModelOpen] = useState(false)
   const [editingModel, setEditingModel] = useState<Model | null>(null)
@@ -38,12 +39,14 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
         setEditingCard(null)
         setPresetModelId(opts?.modelId)
         setPresetClipId(opts?.clipId)
+        setPresetRoundId(opts?.roundId)
         setScorecardOpen(true)
       },
       editScorecard: (card) => {
         setEditingCard(card)
         setPresetModelId(undefined)
         setPresetClipId(undefined)
+        setPresetRoundId(undefined)
         setScorecardOpen(true)
       },
       newModel: () => {
@@ -83,6 +86,7 @@ export function ActionsProvider({ children }: { children: ReactNode }) {
           editing={editingCard}
           presetModelId={presetModelId}
           presetClipId={presetClipId}
+          presetRoundId={presetRoundId}
         />
       )}
       {modelOpen && <ModelModal open={modelOpen} onClose={() => setModelOpen(false)} editing={editingModel} />}

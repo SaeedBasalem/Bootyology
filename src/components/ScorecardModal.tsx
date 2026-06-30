@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Save, Sparkles, Plus, Heart, Smile, Zap, Star, Film, AlertCircle } from 'lucide-react'
+import { Save, Sparkles, Plus, Heart, Smile, Zap, Star, Film, AlertCircle, Layers } from 'lucide-react'
 import { Modal } from './ui'
 import { useStore } from '../lib/store'
 import { useActions } from './ActionsProvider'
@@ -14,6 +14,7 @@ interface Props {
   editing?: Scorecard | null
   presetModelId?: string
   presetClipId?: string
+  presetRoundId?: string
 }
 
 const SESSION_TYPES: { value: SessionType; label: string; icon: string; desc: string }[] = [
@@ -29,7 +30,7 @@ const STATUS_BADGE: Record<string, string> = {
   scored: '⭐',
 }
 
-export function ScorecardModal({ open, onClose, editing, presetModelId, presetClipId }: Props) {
+export function ScorecardModal({ open, onClose, editing, presetModelId, presetClipId, presetRoundId }: Props) {
   const { data, saveScorecard, saveClip, toast } = useStore()
   const actions = useActions()
 
@@ -45,6 +46,7 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   const [date, setDate] = useState(editing?.date ?? todayISO())
   const [scores, setScores] = useState<Scores>(editing?.scores ?? emptyScores())
   const [comments, setComments] = useState(editing?.comments ?? '')
+  const linkedRoundId = editing?.roundId ?? presetRoundId ?? undefined
 
   const [reaction, setReaction] = useState<JudgeReaction>(
     editing?.reaction ?? { positivity: 7, comfortability: 7, happiness: 7, sessionType: 'casual' },
@@ -117,6 +119,7 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
       id: editing?.id,
       modelId,
       clipId: finalClipId,
+      roundId: linkedRoundId,
       date,
       scores,
       comments: comments.trim() || undefined,
@@ -156,6 +159,16 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
           <input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
       </div>
+
+      {/* ── Round indicator — shown when scorecard is linked to a round ──────── */}
+      {linkedRoundId && (() => {
+        const round = data.rounds.find((r) => r.id === linkedRoundId)
+        return round ? (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-gold/25 bg-gold/8 px-3 py-2 text-xs font-semibold text-gold">
+            <Layers size={13} /> Round: {round.name}
+          </div>
+        ) : null
+      })()}
 
       {/* ── Clip picker ──────────────────────────────────────────────────────── */}
       <div className="mt-4">
