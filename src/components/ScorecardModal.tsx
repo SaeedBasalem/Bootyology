@@ -1,7 +1,7 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Save, Sparkles, Plus, Heart, Smile, Zap, Star, Film,
-  AlertCircle, Layers, Play, ExternalLink, ChevronRight, CheckCircle2,
+  AlertCircle, Layers, Play, ExternalLink, ChevronRight, CheckCircle2, Loader2,
 } from 'lucide-react'
 import { Modal } from './ui'
 import { useStore } from '../lib/store'
@@ -10,6 +10,7 @@ import { CRITERIA, bandFor, emptyScores } from '../lib/criteria'
 import { computeTotal, pct, scoreTier, statsForModel, MAX_TOTAL } from '../lib/scoring'
 import type { CriterionKey, JudgeReaction, Scorecard, Scores, SessionType } from '../lib/types'
 import { todayISO, classNames } from '../lib/util'
+import { getClipObjectURL } from '../lib/clipStore'
 
 interface Props {
   open: boolean
@@ -38,6 +39,7 @@ const STATUS_BADGE: Record<string, string> = {
 function classifyUrl(url?: string): 'direct-video' | 'youtube' | 'external' | 'none' {
   if (!url) return 'none'
   const u = url.toLowerCase()
+  if (u.startsWith('blob:')) return 'direct-video'
   if (/\.(mp4|webm|mov|m4v|avi|mkv)(\?|#|$)/.test(u)) return 'direct-video'
   if (u.includes('youtube.com/') || u.includes('youtu.be/')) return 'youtube'
   return 'external'
@@ -74,6 +76,9 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   // ── watch step state ──────────────────────────────────────────────────────
   const [videoEnded, setVideoEnded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [blobLoading, setBlobLoading] = useState(false)
+  const [blobMissing, setBlobMissing] = useState(false)
 
   // ── derived ───────────────────────────────────────────────────────────────
   const modelClips = useMemo(
@@ -82,9 +87,45 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   )
   const isQuickAdd = clipId === '__new__'
   const selectedClip = data.clips.find((c) => c.id === clipId)
-  const clipUrl = isQuickAdd ? (quickUrl.trim() || undefined) : selectedClip?.url
-  const urlType = classifyUrl(clipUrl)
+
+  // Resolve the playable URL: blob for file clips, stored url for link clips, typed for quick-add
+  const effectiveClipUrl: string | undefined = isQuickAdd
+    ? (quickUrl.trim() || undefined)
+    : selectedClip?.source === 'file'
+      ? (blobUrl ?? undefined)
+      : selectedClip?.url
+  const urlType = classifyUrl(effectiveClipUrl)
   const clipLabel = isQuickAdd ? quickTitle : (selectedClip?.title ?? '')
+
+  // Load blob URL when entering the watch step for file-based clips
+  useEffect(() => {
+    let revoked = false
+    let objectUrl: string | null = null
+    setBlobUrl(null)
+    setBlobMissing(false)
+    setBlobLoading(false)
+
+    if (step === 'watch' && selectedClip?.source === 'file') {
+      setBlobLoading(true)
+      getClipObjectURL(selectedClip.id)
+        .then((u) => {
+          if (revoked) return
+          if (u) {
+            objectUrl = u
+            setBlobUrl(u)
+          } else {
+            setBlobMissing(true)
+          }
+        })
+        .catch(() => { if (!revoked) setBlobMissing(true) })
+        .finally(() => { if (!revoked) setBlobLoading(false) })
+    }
+
+    return () => {
+      revoked = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [step, selectedClip?.id, selectedClip?.source])
 
   const total = computeTotal(scores)
   const tier = scoreTier(total)
@@ -358,50 +399,70 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
           {/* Player area */}
           <div className={classNames(
             'relative w-full overflow-hidden rounded-2xl bg-black',
-            urlType === 'none' || urlType === 'external' ? 'aspect-[16/7]' : 'aspect-video',
+            urlType === 'none' || urlType === 'external' || blobLoading || blobMissing ? 'aspect-[16/7]' : 'aspect-video',
           )}>
-            {urlType === 'direct-video' && clipUrl && (
+            {/* Loading blob from IndexedDB */}
+            {blobLoading && (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-muted">
+                <Loader2 size={32} className="animate-spin" />
+                <p className="text-sm">Loading clip…</p>
+              </div>
+            )}
+
+            {/* File not found in storage */}
+            {blobMissing && (
+              <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface2/80">
+                  <Film size={32} className="text-muted" />
+                </div>
+                <div>
+                  <p className="font-semibold text-content">File not found on this device</p>
+                  <p className="mt-1 text-xs text-muted">The stored video could not be loaded. Watch it elsewhere and come back.</p>
+                </div>
+              </div>
+            )}
+
+            {!blobLoading && !blobMissing && urlType === 'direct-video' && effectiveClipUrl && (
               <video
                 ref={videoRef}
-                src={clipUrl}
+                src={effectiveClipUrl}
                 controls
                 autoPlay
                 className="h-full w-full"
                 onEnded={() => {
                   setVideoEnded(true)
-                  // brief pause then advance so the user sees the "Watched" indicator
                   setTimeout(() => setStep('score'), 800)
                 }}
               />
             )}
 
-            {urlType === 'youtube' && clipUrl && (
+            {!blobLoading && urlType === 'youtube' && effectiveClipUrl && (
               <iframe
-                src={toYouTubeEmbed(clipUrl)}
+                src={toYouTubeEmbed(effectiveClipUrl)}
                 className="h-full w-full border-0"
                 allow="autoplay; fullscreen; picture-in-picture"
                 allowFullScreen
               />
             )}
 
-            {(urlType === 'external' || urlType === 'none') && (
+            {!blobLoading && !blobMissing && (urlType === 'external' || urlType === 'none') && (
               <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
                 <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface2/80">
                   <Film size={32} className="text-muted" />
                 </div>
                 <div>
                   <p className="font-semibold text-content">
-                    {clipUrl ? 'External clip' : 'No URL linked'}
+                    {effectiveClipUrl ? 'External clip' : 'No URL linked'}
                   </p>
                   <p className="mt-1 text-xs text-muted">
-                    {clipUrl
+                    {effectiveClipUrl
                       ? 'Open it in your browser, watch it fully, then come back to judge.'
                       : 'No URL was provided for this clip. Watch it elsewhere and come back.'}
                   </p>
                 </div>
-                {clipUrl && (
+                {effectiveClipUrl && (
                   <a
-                    href={clipUrl}
+                    href={effectiveClipUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-gold flex items-center gap-2"
