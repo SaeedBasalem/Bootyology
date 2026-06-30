@@ -286,13 +286,20 @@ function MainContent() {
 
 function Shell() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { view, modelId } = useNav()
+  // A unique key per destination — forces React to remount the content,
+  // which re-triggers the CSS animations on every navigation.
+  const pageKey = `${view}-${modelId ?? ''}`
+
   return (
     <div className="relative z-10 flex min-h-screen">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <MobileHeader onMenu={() => setMenuOpen(true)} />
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 pb-24 sm:px-6 lg:pb-10">
-          <div className="animate-fade-in">
+          <div key={pageKey} className="animate-page-in">
+            {/* Sweep bar — remounts with the key so it replays on every nav */}
+            <div className="page-slash-bar" aria-hidden="true" />
             <MainContent />
           </div>
         </main>

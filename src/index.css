@@ -258,6 +258,13 @@ html.light body::before {
 .ticker-track { animation: ticker-scroll 28s linear infinite; }
 .ticker-track:hover { animation-play-state: paused; }
 
+/* ── Scrolling photo strip (dashboard hero background) ───────────────────── */
+@keyframes photo-strip-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.photo-strip-track { animation: photo-strip-scroll 60s linear infinite; }
+
 /* ── Range slider ─────────────────────────────────────────────────────────── */
 input[type='range'] {
   -webkit-appearance: none;
@@ -336,3 +343,31 @@ input[type='range']::-moz-range-progress {
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
 .animate-confetti { animation: confetti 0.5s ease-in-out; }
 .animate-count-up { animation: count-up 0.35s ease forwards; }
+
+/* ── Urban page transition ────────────────────────────────────────────────── */
+/* Content rises and sharpens into place — ease-out-expo timing. */
+@keyframes page-in {
+  0%   { opacity: 0; transform: translateY(20px) scale(0.985); }
+  35%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0)    scale(1);     }
+}
+.animate-page-in {
+  animation: page-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* CM-red → gold sweep bar that fires across the top on every navigation. */
+@keyframes page-slash {
+  0%   { transform: scaleX(0); transform-origin: left;  opacity: 1; }
+  45%  { transform: scaleX(1); transform-origin: left;  opacity: 1; }
+  46%  {                        transform-origin: right;             }
+  100% { transform: scaleX(0); transform-origin: right; opacity: 0; }
+}
+.page-slash-bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--cm-red), var(--gold));
+  pointer-events: none;
+  z-index: 9999;
+  animation: page-slash 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

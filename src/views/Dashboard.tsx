@@ -44,12 +44,11 @@ export function Dashboard() {
   const scoredToday = todayScoredCount(data)
   const streak = data.judgeProfile?.currentStreak ?? 0
 
-  // Top models' photos for hero mosaic
-  const heroBgPhotos = data.models
+  // All model photos (ranked first, then their extras) for the scrolling strip
+  const heroStripPhotos = data.models
     .filter((m) => !m.archived && m.photoUrl)
     .sort((a, b) => statsForModel(data, b.id).average - statsForModel(data, a.id).average)
-    .slice(0, 8)
-    .map((m) => m.photoUrl!)
+    .flatMap((m) => [m.photoUrl!, ...(m.photos ?? [])])
 
   function completeChallenge() {
     if (!challenge || challenge.completed) return
@@ -66,16 +65,19 @@ export function Dashboard() {
       {/* ── Hero — editorial cover with photo mosaic ─────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-line bg-black shadow-card">
 
-        {/* Photo mosaic background */}
-        {heroBgPhotos.length > 0 ? (
-          <div className="absolute inset-0 flex overflow-hidden">
-            {heroBgPhotos.map((url, i) => (
-              <div
-                key={i}
-                className="flex-1 bg-cover bg-center"
-                style={{ backgroundImage: `url(${url})`, minWidth: 0 }}
-              />
-            ))}
+        {/* Scrolling photo strip — same loop technique as the live ticker */}
+        {heroStripPhotos.length > 0 ? (
+          <div className="absolute inset-0 overflow-hidden">
+            <div className="photo-strip-track flex h-full" style={{ gap: '3px' }}>
+              {/* Duplicate the array so translateX(-50%) creates a seamless loop */}
+              {[...heroStripPhotos, ...heroStripPhotos].map((url, i) => (
+                <div
+                  key={i}
+                  className="shrink-0 h-full bg-cover bg-top"
+                  style={{ width: '160px', backgroundImage: `url(${url})` }}
+                />
+              ))}
+            </div>
             <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/80 to-black/50" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/60" />
           </div>
