@@ -396,3 +396,82 @@ export function xpForScorecard(total: number): number {
   if (p >= 60) return 12
   return 8
 }
+
+// ── Tier progress (points to next tier) ──────────────────────────────────────
+
+export interface TierProgressResult {
+  current: { label: string; color: string }
+  next: { label: string; color: string; minTotal: number } | null
+  pointsNeeded: number
+  pctToNext: number  // 0..1 progress within current tier band
+}
+
+export function tierProgress(total: number): TierProgressResult {
+  const TIERS = [
+    { label: 'Early',      color: 'var(--text-muted)', minTotal: 0 },
+    { label: 'Developing', color: 'var(--rose)',        minTotal: Math.ceil(0.45 * MAX_TOTAL) },
+    { label: 'Strong',     color: '#7aa7d8',            minTotal: Math.ceil(0.60 * MAX_TOTAL) },
+    { label: 'Excellent',  color: 'var(--good)',        minTotal: Math.ceil(0.78 * MAX_TOTAL) },
+    { label: 'Elite',      color: 'var(--gold)',        minTotal: Math.ceil(0.90 * MAX_TOTAL) },
+  ]
+  let idx = 0
+  for (let i = TIERS.length - 1; i >= 0; i--) {
+    if (total >= TIERS[i].minTotal) { idx = i; break }
+  }
+  const current = TIERS[idx]
+  const next = TIERS[idx + 1] ?? null
+  if (!next) return { current, next: null, pointsNeeded: 0, pctToNext: 1 }
+  const pointsNeeded = Math.max(0, next.minTotal - total)
+  const range = next.minTotal - current.minTotal
+  const pctToNext = range > 0 ? Math.min(1, (total - current.minTotal) / range) : 1
+  return { current, next, pointsNeeded, pctToNext }
+}
+
+// ── Days since last scorecard ─────────────────────────────────────────────────
+
+export function daysSinceLastScore(data: AppData, modelId: string): number | null {
+  const cards = data.scorecards.filter((c) => c.modelId === modelId)
+  if (!cards.length) return null
+  const latest = cards.slice().sort((a, b) => b.date.localeCompare(a.date))[0]
+  const today = new Date()
+  const last = new Date(latest.date + 'T12:00:00')
+  return Math.floor((today.getTime() - last.getTime()) / (1000 * 60 * 60 * 24))
+}
+
+// ── Models most needing a score ───────────────────────────────────────────────
+
+export interface ModelScorePriority {
+  model: Model
+  unscoredClips: import('./types').Clip[]
+  daysSince: number | null
+  totalClips: number
+}
+
+export function modelsNeedingScore(data: AppData, n = 6): ModelScorePriority[] {
+  return data.models
+    .filter((m) => !m.archived)
+    .map((m) => {
+      const clips = data.clips.filter((c) => c.modelId === m.id)
+      const unscored = clips.filter((c) => !data.scorecards.some((s) => s.clipId === c.id))
+      return {
+        model: m,
+        unscoredClips: unscored,
+        daysSince: daysSinceLastScore(data, m.id),
+        totalClips: clips.length,
+      }
+    })
+    .filter((e) => e.unscoredClips.length > 0 || (e.totalClips > 0 && e.daysSince !== null && e.daysSince > 2))
+    .sort((a, b) => {
+      const aScore = a.unscoredClips.length * 1000 + (a.daysSince ?? 9999)
+      const bScore = b.unscoredClips.length * 1000 + (b.daysSince ?? 9999)
+      return bScore - aScore
+    })
+    .slice(0, n)
+}
+
+// ── Today's scoring count ─────────────────────────────────────────────────────
+
+export function todayScoredCount(data: AppData): number {
+  const today = new Date().toISOString().slice(0, 10)
+  return data.scorecards.filter((c) => c.date === today).length
+}

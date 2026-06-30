@@ -1,17 +1,21 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import {
   ArrowLeft, Pencil, ClipboardPlus, Heart, Trash2, Trophy, Calendar,
-  Film, Plus, Instagram, Twitter, Globe, Link, MapPin, Ruler, ChevronLeft, ChevronRight,
+  Film, Plus, Instagram, Twitter, Globe, Link, MapPin, Ruler, ChevronLeft,
+  ChevronRight, Clock, Zap, TrendingUp, Star, Flame,
 } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
 import { useActions } from '../components/ActionsProvider'
-import { Avatar, Badge, Stat, EmptyState } from '../components/ui'
+import { Avatar, Badge, Stat, EmptyState, ProgressBar } from '../components/ui'
 import { ClipCard } from '../components/ClipCard'
 import { ScoreRadar, TrendChart } from '../components/Charts'
 import { CRITERIA, CRITERIA_BY_KEY } from '../lib/criteria'
-import { statsForModel, leaderboard, normalizeCriterion, scoreTier, pct, MAX_TOTAL } from '../lib/scoring'
-import type { CriterionKey, Model } from '../lib/types'
+import {
+  statsForModel, leaderboard, normalizeCriterion, scoreTier, tierProgress,
+  daysSinceLastScore, pct, MAX_TOTAL,
+} from '../lib/scoring'
+import type { CriterionKey, Model, Clip } from '../lib/types'
 import { formatDate } from '../lib/util'
 
 export function ModelProfile() {
@@ -37,6 +41,11 @@ export function ModelProfile() {
   const board = leaderboard(data, data.settings.rankBy)
   const rank = board.find((b) => b.model.id === model.id)?.rank
   const modelClips = data.clips.filter((c) => c.modelId === model.id)
+  const unscoredClips = modelClips.filter((c) => !data.scorecards.some((s) => s.clipId === c.id))
+  const daysSince = daysSinceLastScore(data, model.id)
+
+  // Pick the best clip to score next (unscored first)
+  const nextClipToScore: Clip | undefined = unscoredClips[0] ?? modelClips[0]
 
   const ref = stats.latestCard
   const ranked = ref
@@ -46,9 +55,14 @@ export function ModelProfile() {
   const weaknesses = ranked.slice(-3).reverse()
 
   const trendData = stats.cards.map((card, i) => {
-    const round = data.rounds.find((r) => r.id === card.roundId)
-    return { label: round?.name ?? `R${i + 1}`, Total: card.total }
+    const clip = data.clips.find((cl) => cl.id === card.clipId)
+    return { label: clip?.title.slice(0, 12) ?? `#${i + 1}`, Total: card.total }
   })
+
+  const tierProg = stats.rounds > 0 ? tierProgress(stats.average) : null
+
+  // All photos for lightbox
+  const allPhotos = [model.photoUrl, ...(model.photos ?? [])].filter(Boolean) as string[]
 
   function handleDelete(id: string) {
     deleteScorecard(id)
@@ -56,15 +70,15 @@ export function ModelProfile() {
     toast({ title: 'Scorecard deleted' })
   }
 
-  // All photos for lightbox
-  const allPhotos = [model.photoUrl, ...(model.photos ?? [])].filter(Boolean) as string[]
+  // Collect all model photos for background mosaic
+  const bgPhotos = allPhotos.slice(0, 6)
 
   return (
     <div className="space-y-6">
       {/* Lightbox */}
       {lightboxIndex !== null && allPhotos.length > 0 && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/92 backdrop-blur-sm"
           onClick={() => setLightboxIndex(null)}
         >
           <button
@@ -85,7 +99,7 @@ export function ModelProfile() {
           >
             <ChevronRight size={22} />
           </button>
-          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-white/60">
+          <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-sm text-white/50">
             {lightboxIndex + 1} / {allPhotos.length}
           </p>
         </div>
@@ -95,94 +109,184 @@ export function ModelProfile() {
         <ArrowLeft size={16} /> Back
       </button>
 
-      {/* ── Hero card ────────────────────────────────────────────────────────── */}
-      <div className="card relative overflow-hidden">
-        {/* Background photo blur */}
-        {model.photoUrl && (
+      {/* ── Hero card — photo mosaic background ─────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl border border-line bg-black shadow-card">
+
+        {/* Photo mosaic background */}
+        {bgPhotos.length > 0 ? (
+          <div className="absolute inset-0 flex overflow-hidden">
+            {bgPhotos.map((p, i) => (
+              <div
+                key={i}
+                className="flex-1 bg-cover bg-center"
+                style={{ backgroundImage: `url(${p})`, minWidth: 0 }}
+              />
+            ))}
+            {/* Dark overlay gradient */}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/75 to-black/60" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50" />
+          </div>
+        ) : (
           <div
             className="absolute inset-0 opacity-20"
-            style={{ backgroundImage: `url(${model.photoUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(20px)', transform: 'scale(1.1)' }}
+            style={{ background: `radial-gradient(circle at 70% 50%, ${model.accent}, transparent 60%)` }}
           />
         )}
-        <div
-          className="pointer-events-none absolute -right-10 -top-10 h-56 w-56 rounded-full opacity-25 blur-2xl"
-          style={{ background: `radial-gradient(circle, ${model.accent}, transparent 70%)` }}
-        />
 
-        <div className="relative p-6">
+        <div className="relative p-6 sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            {/* Main photo / avatar */}
+            {/* Main photo */}
             {model.photoUrl ? (
-              <button onClick={() => setLightboxIndex(0)} className="shrink-0 overflow-hidden rounded-2xl shadow-lg">
-                <img src={model.photoUrl} alt={model.name} className="h-32 w-32 object-cover sm:h-36 sm:w-36" />
+              <button
+                onClick={() => setLightboxIndex(0)}
+                className="shrink-0 overflow-hidden rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] ring-2 transition hover:ring-4"
+                style={{ '--tw-ring-color': model.accent } as React.CSSProperties}
+              >
+                <img src={model.photoUrl} alt={model.name} className="h-36 w-36 object-cover sm:h-44 sm:w-44" />
               </button>
             ) : (
-              <Avatar name={model.name} emoji={model.emoji} accent={model.accent} size={96} />
+              <Avatar name={model.name} emoji={model.emoji} accent={model.accent} size={112} ring />
             )}
 
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-display text-2xl font-bold sm:text-3xl">{model.name}</h1>
-                {model.favorite && <Heart size={18} className="fill-rose text-rose" />}
+                <h1 className="font-display text-3xl font-bold text-white sm:text-4xl drop-shadow">{model.name}</h1>
+                {model.favorite && <Heart size={20} className="fill-rose text-rose" />}
+                {rank === 1 && <Flame size={18} className="text-cm-red-soft" />}
                 {rank && (
-                  <Badge color={rank <= 3 ? 'var(--gold)' : undefined}>
-                    {rank === 1 ? '🥇 #1' : `Rank #${rank}`}
-                  </Badge>
+                  <div
+                    className="rank-badge h-9 w-9 rounded-lg text-2xl shadow"
+                    style={{
+                      background: rank === 1 ? 'linear-gradient(135deg,#f3d791,#e3bc63)' : 'rgba(255,255,255,0.12)',
+                      color: rank === 1 ? '#241606' : 'white',
+                      backdropFilter: 'blur(4px)',
+                      fontFamily: "'Bebas Neue', Impact, sans-serif",
+                    }}
+                  >
+                    {rank}
+                  </div>
                 )}
                 {model.workspace && (
-                  <Badge className="bg-surface2 text-muted border border-line">{model.workspace}</Badge>
+                  <Badge className="bg-white/10 text-white/60 border border-white/15">{model.workspace}</Badge>
                 )}
               </div>
 
-              {model.aliases && <p className="mt-0.5 text-sm text-muted">aka {model.aliases}</p>}
+              {model.aliases && <p className="mt-1 text-sm text-white/60">aka {model.aliases}</p>}
 
               {/* Detail chips */}
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
+              <div className="mt-3 flex flex-wrap gap-1.5">
                 {model.tags.map((t) => <Badge key={t}>{t}</Badge>)}
                 {model.category && <Badge color={model.accent}>{model.category}</Badge>}
                 {model.nationality && (
-                  <Badge className="border border-line bg-surface2 text-muted">
+                  <Badge className="border border-white/15 bg-white/10 text-white/70">
                     <MapPin size={11} /> {model.nationality}
                   </Badge>
                 )}
                 {model.height && (
-                  <Badge className="border border-line bg-surface2 text-muted">
+                  <Badge className="border border-white/15 bg-white/10 text-white/70">
                     <Ruler size={11} /> {model.height}
                   </Badge>
                 )}
                 {model.measurements && (
-                  <Badge className="border border-line bg-surface2 text-muted">{model.measurements}</Badge>
+                  <Badge className="border border-white/15 bg-white/10 text-white/70">{model.measurements}</Badge>
                 )}
                 {model.discoveredYear && (
-                  <Badge><Calendar size={11} /> since {model.discoveredYear}</Badge>
+                  <Badge className="border border-white/15 bg-white/10 text-white/70">
+                    <Calendar size={11} /> since {model.discoveredYear}
+                  </Badge>
                 )}
               </div>
 
-              {/* Social links */}
+              {/* Last scored indicator */}
+              {daysSince !== null && (
+                <div className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                  daysSince === 0 ? 'bg-good/20 text-good' :
+                  daysSince <= 2 ? 'bg-gold/15 text-gold' :
+                  daysSince <= 7 ? 'bg-rose/15 text-rose' :
+                  'bg-cm-red/20 text-cm-red-soft'
+                }`}>
+                  <Clock size={11} />
+                  {daysSince === 0 ? 'Scored today' : `Last scored ${daysSince}d ago`}
+                  {daysSince > 7 && ' — overdue!'}
+                </div>
+              )}
+              {daysSince === null && stats.rounds === 0 && modelClips.length > 0 && (
+                <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-cm-red/25 px-3 py-1 text-xs font-bold text-cm-red-soft">
+                  <Zap size={11} /> Has clips — needs your verdict!
+                </div>
+              )}
+
               <SocialLinks model={model} />
             </div>
 
-            <div className="flex gap-2 shrink-0">
-              <button className="btn-ghost" onClick={() => editModel(model)}>
+            {/* Action buttons */}
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <button className="btn-ghost border-white/20 text-white/70 hover:text-white" onClick={() => editModel(model)}>
                 <Pencil size={15} /> Edit
               </button>
-              <button className="btn-gold" onClick={() => newScorecard({ modelId: model.id })}>
-                <ClipboardPlus size={15} /> Score
-              </button>
+              {nextClipToScore ? (
+                <button
+                  className="btn-cm"
+                  onClick={() => newScorecard({ modelId: model.id, clipId: nextClipToScore.id })}
+                >
+                  <ClipboardPlus size={15} />
+                  {unscoredClips.length > 0 ? 'Score next clip' : 'Re-score'}
+                </button>
+              ) : (
+                <button className="btn-gold" onClick={() => newClip({ modelId: model.id })}>
+                  <Plus size={15} /> Add clip first
+                </button>
+              )}
             </div>
           </div>
 
           {/* Bio */}
           {model.bio && (
-            <p className="relative mt-5 rounded-xl bg-black/20 p-4 text-sm leading-relaxed text-content/90 backdrop-blur-sm border border-white/10">
+            <p className="relative mt-5 rounded-xl bg-white/5 p-4 text-sm leading-relaxed text-white/80 backdrop-blur-sm border border-white/10">
               {model.bio}
             </p>
           )}
           {!model.bio && model.notes && (
-            <p className="relative mt-4 rounded-xl bg-surface2 p-3 text-sm text-muted">{model.notes}</p>
+            <p className="relative mt-4 rounded-xl bg-white/5 p-3 text-sm text-white/60">{model.notes}</p>
           )}
         </div>
       </div>
+
+      {/* ── Tier progress bar ─────────────────────────────────────────────────── */}
+      {tierProg && (
+        <div className="card p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-muted">Current tier</p>
+              <p className="mt-0.5 font-display text-xl font-bold" style={{ color: tierProg.current.color }}>
+                {tierProg.current.label}
+              </p>
+            </div>
+            {tierProg.next ? (
+              <div className="text-right">
+                <p className="text-xs font-bold uppercase tracking-widest text-muted">Next tier</p>
+                <p className="mt-0.5 font-display text-xl font-bold" style={{ color: tierProg.next.color }}>
+                  {tierProg.next.label}
+                </p>
+              </div>
+            ) : (
+              <div className="text-right">
+                <p className="urban-num text-3xl text-gold">ELITE</p>
+                <p className="text-xs text-muted">Top tier unlocked!</p>
+              </div>
+            )}
+          </div>
+          <div className="mt-3">
+            <ProgressBar value={tierProg.pctToNext * 100} color={tierProg.current.color} height={8} />
+          </div>
+          {tierProg.next && (
+            <p className="mt-2 text-xs text-muted">
+              <span className="font-bold text-content">{tierProg.pointsNeeded} points</span> away from{' '}
+              <span style={{ color: tierProg.next.color }}>{tierProg.next.label}</span> — score more clips!
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ── Photo gallery ─────────────────────────────────────────────────────── */}
       {(model.photos ?? []).length > 0 && (
@@ -193,7 +297,7 @@ export function ModelProfile() {
               <button
                 key={p}
                 onClick={() => setLightboxIndex(model.photoUrl ? i + 1 : i)}
-                className="aspect-square overflow-hidden rounded-xl border border-line transition hover:border-gold/50 hover:scale-[1.02]"
+                className="aspect-square overflow-hidden rounded-xl border border-line transition hover:border-gold/50 hover:scale-[1.03]"
               >
                 <img src={p} alt="" className="h-full w-full object-cover" />
               </button>
@@ -203,38 +307,61 @@ export function ModelProfile() {
       )}
 
       {/* ── Clips ────────────────────────────────────────────────────────────── */}
-      <div className="card p-5">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold">
             <Film size={18} className="text-gold" /> Clips
             <span className="text-sm font-normal text-muted">({modelClips.length})</span>
+            {unscoredClips.length > 0 && (
+              <span className="rounded-full bg-cm-red px-2 py-0.5 text-[10px] font-bold text-white">
+                {unscoredClips.length} unscored
+              </span>
+            )}
           </h2>
-          <button className="btn-ghost" onClick={() => newClip({ modelId: model.id })}>
-            <Plus size={15} /> Link clip
+          <button className="btn-ghost text-sm" onClick={() => newClip({ modelId: model.id })}>
+            <Plus size={14} /> Link clip
           </button>
         </div>
-        {modelClips.length === 0 ? (
-          <p className="rounded-xl bg-surface2 p-4 text-center text-sm text-muted">
-            No clips yet. Attach a clip for {model.name} — then score it directly from the player.
-          </p>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {modelClips.map((clip) => (
-              <ClipCard key={clip.id} clip={clip} showModel={false} />
-            ))}
-          </div>
-        )}
+        <div className="p-5">
+          {modelClips.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-line py-10 text-center">
+              <Film size={28} className="text-muted" />
+              <div>
+                <p className="font-semibold text-content">No clips yet</p>
+                <p className="mt-0.5 text-sm text-muted">Add a clip for {model.name} to start scoring her</p>
+              </div>
+              <button className="btn-cm" onClick={() => newClip({ modelId: model.id })}>
+                <Plus size={15} /> Add first clip
+              </button>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {modelClips.map((clip) => (
+                <ClipCard key={clip.id} clip={clip} showModel={false} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {stats.rounds === 0 ? (
         <EmptyState
           icon={<ClipboardPlus size={28} />}
-          title="Not scored yet"
-          message={`Run ${model.name} through a round to unlock trends, a strengths radar and ranking.`}
+          title="No scorecards yet"
+          message={modelClips.length > 0
+            ? `Score one of ${model.name}'s ${modelClips.length} clip${modelClips.length !== 1 ? 's' : ''} to unlock her full analytics.`
+            : `Add a clip for ${model.name} and score it to unlock trends, a strengths radar, and ranking.`
+          }
           action={
-            <button className="btn-gold" onClick={() => newScorecard({ modelId: model.id })}>
-              <ClipboardPlus size={16} /> Score now
-            </button>
+            nextClipToScore ? (
+              <button className="btn-cm" onClick={() => newScorecard({ modelId: model.id, clipId: nextClipToScore.id })}>
+                <ClipboardPlus size={16} /> Score her now
+              </button>
+            ) : (
+              <button className="btn-gold" onClick={() => newClip({ modelId: model.id })}>
+                <Plus size={16} /> Add clip to score
+              </button>
+            )
           }
         />
       ) : (
@@ -242,9 +369,9 @@ export function ModelProfile() {
           {/* ── Stats ──────────────────────────────────────────────────────── */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Average" value={stats.average} sub={`${pct(stats.average)}% · ${scoreTier(stats.average).label}`} icon={<Trophy size={18} />} />
-            <Stat label="Best" value={stats.best} sub={`of ${MAX_TOTAL}`} accent="var(--good)" icon={<Trophy size={18} />} />
-            <Stat label="Latest" value={stats.latest} accent="var(--rose)" sub={stats.trend !== 0 ? `${stats.trend > 0 ? '+' : ''}${stats.trend} vs prev` : 'steady'} />
-            <Stat label="Rounds" value={stats.rounds} />
+            <Stat label="Best" value={stats.best} sub={`of ${MAX_TOTAL}`} accent="var(--good)" icon={<Star size={18} />} />
+            <Stat label="Latest" value={stats.latest} accent="var(--rose)" sub={stats.trend !== 0 ? `${stats.trend > 0 ? '+' : ''}${stats.trend} vs prev` : 'steady'} icon={<TrendingUp size={18} />} />
+            <Stat label="Scorecards" value={stats.rounds} icon={<Film size={18} />} accent="var(--cm-red)" />
           </div>
 
           {/* ── Charts ─────────────────────────────────────────────────────── */}
@@ -260,8 +387,13 @@ export function ModelProfile() {
               {trendData.length >= 2 ? (
                 <TrendChart data={trendData} lines={[{ key: 'Total', color: model.accent }]} />
               ) : (
-                <div className="flex h-[240px] items-center justify-center text-center text-sm text-muted">
-                  Score another round to see the trend line.
+                <div className="flex h-[240px] flex-col items-center justify-center gap-3 text-center text-sm text-muted">
+                  <p>Score another clip to see the trend line.</p>
+                  {nextClipToScore && (
+                    <button className="btn-cm text-xs" onClick={() => newScorecard({ modelId: model.id, clipId: nextClipToScore.id })}>
+                      <ClipboardPlus size={13} /> Score next clip
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -290,22 +422,54 @@ export function ModelProfile() {
           )}
 
           {/* ── Scorecard history ──────────────────────────────────────────── */}
-          <div className="card p-5">
-            <h2 className="mb-3 font-display text-lg font-semibold">Scorecard history</h2>
-            <div className="space-y-3">
+          <div className="card overflow-hidden">
+            <div className="flex items-center justify-between border-b border-line px-5 py-4">
+              <h2 className="font-display text-lg font-semibold">Scorecard history</h2>
+              {nextClipToScore && (
+                <button
+                  className="btn-cm text-xs"
+                  onClick={() => newScorecard({ modelId: model.id, clipId: nextClipToScore.id })}
+                >
+                  <ClipboardPlus size={13} /> Score next clip
+                </button>
+              )}
+            </div>
+            <div className="space-y-3 p-5">
               {stats.cards.slice().reverse().map((card) => {
-                const round = data.rounds.find((r) => r.id === card.roundId)
+                const clip = data.clips.find((c) => c.id === card.clipId)
                 const tier = scoreTier(card.total)
+                const isBest = card.total === stats.best && stats.rounds > 1
                 return (
-                  <div key={card.id} className="rounded-xl border border-line bg-surface2 p-4">
+                  <div
+                    key={card.id}
+                    className="rounded-xl border border-line bg-surface2 p-4 transition hover:border-line/80"
+                    style={isBest ? { borderColor: 'rgba(227,188,99,0.4)' } : undefined}
+                  >
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-content">{round?.name ?? 'Round'}</p>
-                        <p className="text-xs text-muted">{formatDate(card.date)}</p>
+                      <div className="min-w-0 flex-1">
+                        {clip ? (
+                          <button
+                            onClick={() => playClip(clip)}
+                            className="flex items-center gap-1.5 text-left group"
+                          >
+                            <Film size={13} className="shrink-0 text-gold" />
+                            <p className="truncate font-semibold text-content group-hover:text-gold transition-colors">
+                              {clip.title}
+                            </p>
+                          </button>
+                        ) : (
+                          <p className="font-semibold text-content">Scorecard</p>
+                        )}
+                        <p className="mt-0.5 text-xs text-muted">{formatDate(card.date)}</p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 shrink-0">
+                        {isBest && (
+                          <span className="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-bold text-gold">
+                            PB ★
+                          </span>
+                        )}
                         <div className="text-right">
-                          <span className="font-display text-2xl font-bold" style={{ color: tier.color }}>{card.total}</span>
+                          <span className="urban-num text-3xl" style={{ color: tier.color }}>{card.total}</span>
                           <span className="text-xs text-muted">/{MAX_TOTAL}</span>
                         </div>
                         <button onClick={() => editScorecard(card)} className="btn-quiet h-8 w-8 p-0" aria-label="Edit">
@@ -322,7 +486,11 @@ export function ModelProfile() {
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {CRITERIA.map((c) => (
-                        <span key={c.key} className="rounded-md bg-surface px-2 py-0.5 text-[11px] text-muted" title={c.label}>
+                        <span
+                          key={c.key}
+                          className="rounded-md bg-surface px-2 py-0.5 text-[11px] text-muted"
+                          title={c.label}
+                        >
                           {c.short}{' '}
                           <span className={c.isDeduction && card.scores[c.key] < 0 ? 'font-bold text-bad' : 'font-bold text-content'}>
                             {card.scores[c.key]}
@@ -331,15 +499,6 @@ export function ModelProfile() {
                       ))}
                     </div>
                     {card.comments && <p className="mt-3 text-sm italic text-muted">"{card.comments}"</p>}
-                    {card.clipId && (() => {
-                      const clip = data.clips.find((c) => c.id === card.clipId)
-                      if (!clip) return null
-                      return (
-                        <button onClick={() => playClip(clip)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-surface px-3 py-1.5 text-xs font-medium text-gold transition hover:bg-surface2">
-                          <Film size={13} /> {clip.title}
-                        </button>
-                      )
-                    })()}
                   </div>
                 )
               })}
@@ -371,7 +530,7 @@ function SocialLinks({ model }: { model: Model }) {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface2 px-2.5 py-1 text-xs font-medium text-muted transition hover:border-gold/50 hover:text-content"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/8 px-2.5 py-1 text-xs font-medium text-white/60 transition hover:border-gold/50 hover:text-white"
           >
             {l.icon} {l.label}
           </a>

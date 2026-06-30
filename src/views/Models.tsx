@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Plus, Search, Pencil, Heart, ClipboardPlus, Users, LayoutGrid, List, MapPin, Star, Flame } from 'lucide-react'
+import { Plus, Search, Pencil, Heart, ClipboardPlus, Users, LayoutGrid, List, MapPin, Star, Flame, Clock, Zap } from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
 import { useActions } from '../components/ActionsProvider'
 import { SectionHeader, Avatar, Badge, EmptyState } from '../components/ui'
-import { statsForModel, scoreTier } from '../lib/scoring'
+import { statsForModel, scoreTier, daysSinceLastScore } from '../lib/scoring'
 import { classNames } from '../lib/util'
 
 type Filter = 'all' | 'favorites' | 'scored' | 'unscored'
@@ -150,8 +150,16 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
         const stats = statsForModel(data, m.id)
         const tier = scoreTier(stats.average)
         const rank = i + 1
+        const daysSince = daysSinceLastScore(data, m.id)
+        const modelClips = data.clips.filter((c) => c.modelId === m.id)
+        const hasUnscoredClips = modelClips.some((c) => !data.scorecards.some((s) => s.clipId === c.id))
         return (
-          <div key={m.id} className="group relative overflow-hidden rounded-2xl border border-line bg-surface shadow-card transition hover:border-gold/40 hover:shadow-[0_8px_30px_rgba(227,188,99,0.12)]">
+          <div key={m.id} className={classNames(
+            'group relative overflow-hidden rounded-2xl border bg-surface shadow-card transition',
+            hasUnscoredClips
+              ? 'border-cm-red/30 hover:border-cm-red/60 hover:shadow-[0_8px_28px_rgba(204,17,17,0.18)]'
+              : 'border-line hover:border-gold/40 hover:shadow-[0_8px_30px_rgba(227,188,99,0.12)]',
+          )}>
             {/* Photo area */}
             <button onClick={() => go('profile', m.id)} className="block w-full">
               {m.photoUrl ? (
@@ -244,6 +252,16 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
                 {m.category && <Badge color={m.accent}>{m.category}</Badge>}
                 {m.nationality && <Badge className="border border-line bg-surface2 text-muted"><MapPin size={10} />{m.nationality}</Badge>}
                 {m.tags.slice(0, 2).map((t) => <Badge key={t}>{t}</Badge>)}
+                {hasUnscoredClips && (
+                  <span className="tier-pill" style={{ background: 'rgba(204,17,17,0.18)', color: 'var(--cm-red-soft)', border: '1px solid rgba(204,17,17,0.3)' }}>
+                    <Zap size={9} /> unscored
+                  </span>
+                )}
+                {!hasUnscoredClips && daysSince !== null && (
+                  <span className={classNames('tier-pill', daysSince <= 3 ? '' : 'opacity-70')} style={{ background: 'rgba(179,155,139,0.12)', color: 'var(--text-muted)', border: '1px solid rgba(179,155,139,0.2)' }}>
+                    <Clock size={9} /> {daysSince === 0 ? 'today' : `${daysSince}d`}
+                  </span>
+                )}
               </div>
 
               {/* Score strip */}
@@ -266,8 +284,14 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
 
               {/* Actions */}
               <div className="mt-3 flex gap-2">
-                <button onClick={() => newScorecard({ modelId: m.id })} className="btn-ghost flex-1 text-xs">
-                  <ClipboardPlus size={13} /> Score
+                <button
+                  onClick={() => {
+                    const firstUnscored = modelClips.find((c) => !data.scorecards.some((s) => s.clipId === c.id))
+                    newScorecard({ modelId: m.id, clipId: firstUnscored?.id })
+                  }}
+                  className={hasUnscoredClips ? 'btn-cm flex-1 text-xs' : 'btn-ghost flex-1 text-xs'}
+                >
+                  <ClipboardPlus size={13} /> {hasUnscoredClips ? 'Score now' : 'Score'}
                 </button>
                 <button onClick={() => editModel(m)} className="btn-quiet h-8 w-8 shrink-0 p-0" aria-label="Edit">
                   <Pencil size={14} />
@@ -290,8 +314,13 @@ function GridView({ models, go, editModel, newScorecard }: ViewProps) {
       {models.map((m) => {
         const stats = statsForModel(data, m.id)
         const tier = scoreTier(stats.average)
+        const modelClips = data.clips.filter((c) => c.modelId === m.id)
+        const hasUnscoredClips = modelClips.some((c) => !data.scorecards.some((s) => s.clipId === c.id))
         return (
-          <div key={m.id} className="card group p-4 transition hover:border-gold/40">
+          <div key={m.id} className={classNames(
+            'card group p-4 transition',
+            hasUnscoredClips ? 'border-cm-red/25 hover:border-cm-red/55' : 'hover:border-gold/40',
+          )}>
             <div className="flex items-start gap-3">
               <button onClick={() => go('profile', m.id)}>
                 <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={50} photoUrl={m.photoUrl} />
@@ -323,11 +352,17 @@ function GridView({ models, go, editModel, newScorecard }: ViewProps) {
               </div>
               <div className="rounded-lg bg-surface2 py-2">
                 <p className="font-display text-lg font-bold text-content">{stats.rounds}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted">Rounds</p>
+                <p className="text-[10px] uppercase tracking-wide text-muted">Clips</p>
               </div>
             </div>
-            <button onClick={() => newScorecard({ modelId: m.id })} className="btn-ghost mt-3 w-full">
-              <ClipboardPlus size={15} /> Score
+            <button
+              onClick={() => {
+                const firstUnscored = modelClips.find((c) => !data.scorecards.some((s) => s.clipId === c.id))
+                newScorecard({ modelId: m.id, clipId: firstUnscored?.id })
+              }}
+              className={hasUnscoredClips ? 'btn-cm mt-3 w-full' : 'btn-ghost mt-3 w-full'}
+            >
+              <ClipboardPlus size={15} /> {hasUnscoredClips ? 'Score now' : 'Score'}
             </button>
           </div>
         )
@@ -366,7 +401,7 @@ function ListView({ models, go, editModel, newScorecard }: ViewProps) {
               </div>
               <div className="hidden sm:block">
                 <p className="text-sm font-bold text-content">{stats.rounds}</p>
-                <p className="text-[10px] text-muted">clips</p>
+                <p className="text-[10px] text-muted">scored</p>
               </div>
             </div>
             <div className="flex gap-1">
@@ -384,5 +419,5 @@ interface ViewProps {
   models: ReturnType<typeof useStore>['data']['models']
   go: (view: 'profile', id: string) => void
   editModel: (m: ReturnType<typeof useStore>['data']['models'][number]) => void
-  newScorecard: (opts?: { modelId: string }) => void
+  newScorecard: (opts?: { modelId?: string; clipId?: string }) => void
 }

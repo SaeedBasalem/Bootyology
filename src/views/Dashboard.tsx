@@ -1,11 +1,18 @@
-import { Plus, Users, Film, ClipboardList, Crown, ArrowRight, Trophy, Sparkles, Target, Zap, Calendar, Star, Flame } from 'lucide-react'
+import {
+  Plus, Users, Film, ClipboardList, Crown, ArrowRight, Trophy, Sparkles,
+  Target, Zap, Calendar, Star, Flame, Clock, AlertCircle, ClipboardPlus,
+} from 'lucide-react'
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
 import { useActions } from '../components/ActionsProvider'
 import { Stat, Avatar, ProgressBar, EmptyState } from '../components/ui'
 import { LeaderRow } from '../components/LeaderRow'
 import { ScoreRadar } from '../components/Charts'
-import { leaderboard, statsForModel, mostImproved, MAX_TOTAL, scoreTier, modelOfMonth, dailyWatchSuggestion } from '../lib/scoring'
+import {
+  leaderboard, statsForModel, mostImproved, MAX_TOTAL, scoreTier,
+  modelOfMonth, dailyWatchSuggestion, modelsNeedingScore,
+  todayScoredCount, daysSinceLastScore,
+} from '../lib/scoring'
 import { achievementSummary, encouragement, getAchievements, todayChallenge, getJudgeLevelInfo } from '../lib/achievements'
 import { formatDate } from '../lib/util'
 
@@ -29,18 +36,26 @@ export function Dashboard() {
       : 0
 
   const metricLabel = data.settings.rankBy === 'best' ? 'best' : data.settings.rankBy === 'latest' ? 'latest' : 'avg'
-
   const monthlyChamp = modelOfMonth(data)
   const dailyWatch = dailyWatchSuggestion(data)
   const challenge = todayChallenge(data)
   const levelInfo = getJudgeLevelInfo(data)
+  const needsScore = modelsNeedingScore(data, 4)
+  const scoredToday = todayScoredCount(data)
+  const streak = data.judgeProfile?.currentStreak ?? 0
+
+  // Top models' photos for hero mosaic
+  const heroBgPhotos = data.models
+    .filter((m) => !m.archived && m.photoUrl)
+    .sort((a, b) => statsForModel(data, b.id).average - statsForModel(data, a.id).average)
+    .slice(0, 8)
+    .map((m) => m.photoUrl!)
 
   function completeChallenge() {
     if (!challenge || challenge.completed) return
     saveChallenge({ ...challenge, completed: true, completedAt: new Date().toISOString() })
   }
 
-  // Ticker content
   const tickerItems = board.slice(0, 8).map((e) =>
     `${e.rank === 1 ? '🔥' : '#' + e.rank} ${e.model.name.split(' ')[0].toUpperCase()}  ${e.metric}`
   ).join('   ·   ')
@@ -48,12 +63,28 @@ export function Dashboard() {
   return (
     <div className="space-y-5">
 
-      {/* ── Hero — full-black CM magazine cover ──────────────────────────── */}
+      {/* ── Hero — editorial cover with photo mosaic ─────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-line bg-black shadow-card">
 
-        {/* Background radial glow */}
-        <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full opacity-35 blur-3xl" style={{ background: 'radial-gradient(circle, #cc1111, transparent 70%)' }} />
-        <div className="pointer-events-none absolute -bottom-20 -left-10 h-52 w-52 rounded-full opacity-15 blur-3xl" style={{ background: 'radial-gradient(circle, #cc1111, transparent 70%)' }} />
+        {/* Photo mosaic background */}
+        {heroBgPhotos.length > 0 ? (
+          <div className="absolute inset-0 flex overflow-hidden">
+            {heroBgPhotos.map((url, i) => (
+              <div
+                key={i}
+                className="flex-1 bg-cover bg-center"
+                style={{ backgroundImage: `url(${url})`, minWidth: 0 }}
+              />
+            ))}
+            <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/80 to-black/50" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent to-black/60" />
+          </div>
+        ) : (
+          <>
+            <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full opacity-35 blur-3xl" style={{ background: 'radial-gradient(circle, #cc1111, transparent 70%)' }} />
+            <div className="pointer-events-none absolute -bottom-20 -left-10 h-52 w-52 rounded-full opacity-15 blur-3xl" style={{ background: 'radial-gradient(circle, #cc1111, transparent 70%)' }} />
+          </>
+        )}
 
         {/* Live ticker */}
         {board.length > 0 && (
@@ -80,7 +111,22 @@ export function Dashboard() {
               <span className="cm-glow">{data.settings.judgeName || 'Judge'}</span>
             </h1>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-white/55">{encouragement(data)}</p>
-            <div className="mt-5 flex flex-wrap gap-2">
+
+            {/* Streak + today counter */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {streak > 1 && (
+                <div className="flex items-center gap-1.5 rounded-full border border-cm-red/40 bg-cm-red/30 px-3 py-1.5 text-sm font-bold text-cm-red-soft">
+                  <Flame size={14} /> {streak}-day streak
+                </div>
+              )}
+              {scoredToday > 0 && (
+                <div className="flex items-center gap-1.5 rounded-full border border-good/30 bg-good/20 px-3 py-1.5 text-sm font-bold text-good">
+                  <Star size={13} /> {scoredToday} scored today
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
               <button className="btn-cm" onClick={() => newScorecard()}>
                 <Plus size={16} /> New scorecard
               </button>
@@ -109,7 +155,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* ── Scoreboard stats ────────────────────────────────────────────── */}
+      {/* ── Scoreboard stats ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Models" value={data.models.filter((m) => !m.archived).length} icon={<Users size={18} />} />
         <Stat label="Clips" value={data.clips.length} icon={<Film size={18} />} accent="var(--rose)" />
@@ -117,7 +163,64 @@ export function Dashboard() {
         <Stat label="Avg score" value={avgAll || '—'} sub={`out of ${MAX_TOTAL}`} icon={<Trophy size={18} />} />
       </div>
 
-      {/* ── Daily widgets ────────────────────────────────────────────────── */}
+      {/* ── Needs Your Verdict — models with unscored clips ─────────────────── */}
+      {needsScore.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="flex items-center gap-2 border-b border-line bg-cm-red/8 px-5 py-3">
+            <AlertCircle size={15} className="text-cm-red-soft" />
+            <h2 className="text-sm font-bold uppercase tracking-widest text-cm-red-soft">Needs Your Verdict</h2>
+            <span className="ml-auto rounded-full bg-cm-red/20 px-2 py-0.5 text-[11px] font-bold text-cm-red-soft">
+              {needsScore.length}
+            </span>
+          </div>
+          <div className="grid gap-2 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            {needsScore.map(({ model, unscoredClips, daysSince }) => {
+              const stats = statsForModel(data, model.id)
+              const tier = stats.rounds > 0 ? scoreTier(stats.average) : null
+              const firstUnscored = unscoredClips[0]
+              return (
+                <div
+                  key={model.id}
+                  className="group relative overflow-hidden rounded-xl border border-cm-red/20 bg-surface2 transition hover:border-cm-red/50"
+                >
+                  {model.photoUrl && (
+                    <div
+                      className="absolute inset-0 opacity-12 bg-cover bg-center blur-sm scale-105"
+                      style={{ backgroundImage: `url(${model.photoUrl})` }}
+                    />
+                  )}
+                  <div className="relative flex flex-col gap-2 p-3">
+                    <div className="flex items-center gap-2">
+                      <Avatar name={model.name} emoji={model.emoji} accent={model.accent} size={36} photoUrl={model.photoUrl} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-content">{model.name}</p>
+                        <p className="text-[10px] text-muted">
+                          {unscoredClips.length > 0
+                            ? `${unscoredClips.length} unscored clip${unscoredClips.length !== 1 ? 's' : ''}`
+                            : daysSince !== null ? `${daysSince}d since last score` : 'No score yet'}
+                        </p>
+                      </div>
+                    </div>
+                    {tier && (
+                      <span className="tier-pill self-start" style={{ background: `${tier.color}22`, color: tier.color, border: `1px solid ${tier.color}44` }}>
+                        {tier.label}
+                      </span>
+                    )}
+                    <button
+                      className="btn-cm py-1.5 text-xs"
+                      onClick={() => newScorecard({ modelId: model.id, clipId: firstUnscored?.id })}
+                    >
+                      <ClipboardPlus size={12} /> Score now
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Daily widgets ────────────────────────────────────────────────────── */}
       <div className="grid gap-4 lg:grid-cols-3">
 
         {/* Daily challenge */}
@@ -170,18 +273,40 @@ export function Dashboard() {
                 <p className="mb-2 text-xs text-muted">Rotation — least recently scored:</p>
                 <button
                   onClick={() => go('profile', dailyWatch.id)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface2 p-3 text-left transition hover:border-gold/40"
+                  className="relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-line bg-surface2 p-3 text-left transition hover:border-gold/40"
                 >
-                  <Avatar name={dailyWatch.name} emoji={dailyWatch.emoji} accent={dailyWatch.accent} size={44} photoUrl={dailyWatch.photoUrl} />
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate font-semibold text-content">{dailyWatch.name}</p>
-                    <p className="text-xs text-muted">{dailyWatch.category || 'Rotation pick'}</p>
+                  {dailyWatch.photoUrl && (
+                    <div className="absolute inset-0 opacity-15 bg-cover bg-center" style={{ backgroundImage: `url(${dailyWatch.photoUrl})` }} />
+                  )}
+                  <div className="relative flex w-full items-center gap-3">
+                    <Avatar name={dailyWatch.name} emoji={dailyWatch.emoji} accent={dailyWatch.accent} size={44} photoUrl={dailyWatch.photoUrl} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-content">{dailyWatch.name}</p>
+                      <p className="text-xs text-muted">{dailyWatch.category || 'Rotation pick'}</p>
+                    </div>
+                    <ArrowRight size={15} className="shrink-0 text-muted" />
                   </div>
-                  <ArrowRight size={15} className="text-muted" />
                 </button>
-                <button className="btn-ghost mt-2 w-full text-xs py-1.5" onClick={() => newScorecard({ modelId: dailyWatch.id })}>
-                  <Plus size={13} /> Score her now
-                </button>
+                {(() => {
+                  const days = daysSinceLastScore(data, dailyWatch.id)
+                  const modelClips = data.clips.filter((c) => c.modelId === dailyWatch.id)
+                  const firstUnscored = modelClips.find((c) => !data.scorecards.some((s) => s.clipId === c.id))
+                  return (
+                    <div className="mt-2 space-y-1.5">
+                      {days !== null && (
+                        <p className="flex items-center gap-1 text-xs text-muted">
+                          <Clock size={10} /> Last scored {days === 0 ? 'today' : `${days}d ago`}
+                        </p>
+                      )}
+                      <button
+                        className="btn-ghost w-full text-xs py-1.5"
+                        onClick={() => newScorecard({ modelId: dailyWatch.id, clipId: firstUnscored?.id })}
+                      >
+                        <Plus size={13} /> Score her now
+                      </button>
+                    </div>
+                  )
+                })()}
               </div>
             ) : (
               <p className="text-sm text-muted">Add models to get daily suggestions.</p>
@@ -202,14 +327,19 @@ export function Dashboard() {
                 <p className="mb-2 text-[11px] uppercase tracking-wider text-muted">{monthlyChamp.title}</p>
                 <button
                   onClick={() => go('profile', monthlyChamp.model.id)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface2 p-3 text-left transition hover:border-rose/40"
+                  className="relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-line bg-surface2 p-3 text-left transition hover:border-rose/40"
                 >
-                  <Avatar name={monthlyChamp.model.name} emoji={monthlyChamp.model.emoji} accent={monthlyChamp.model.accent} size={44} photoUrl={monthlyChamp.model.photoUrl} />
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate font-semibold text-content">{monthlyChamp.model.name}</p>
-                    <p className="text-xs text-muted">{monthlyChamp.scorecardCount} sessions · avg {monthlyChamp.avgScore}</p>
+                  {monthlyChamp.model.photoUrl && (
+                    <div className="absolute inset-0 opacity-15 bg-cover bg-center" style={{ backgroundImage: `url(${monthlyChamp.model.photoUrl})` }} />
+                  )}
+                  <div className="relative flex w-full items-center gap-3">
+                    <Avatar name={monthlyChamp.model.name} emoji={monthlyChamp.model.emoji} accent={monthlyChamp.model.accent} size={44} photoUrl={monthlyChamp.model.photoUrl} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-content">{monthlyChamp.model.name}</p>
+                      <p className="text-xs text-muted">{monthlyChamp.scorecardCount} sessions · avg {monthlyChamp.avgScore}</p>
+                    </div>
+                    <span className="urban-num shrink-0 text-2xl text-gold">{monthlyChamp.avgScore}</span>
                   </div>
-                  <span className="urban-num text-2xl text-gold">{monthlyChamp.avgScore}</span>
                 </button>
               </div>
             ) : (
@@ -240,32 +370,43 @@ export function Dashboard() {
                 <Crown size={14} className="text-gold" />
                 <p className="text-sm font-bold uppercase tracking-widest text-gold">Reigning #1</p>
               </div>
-              <div className="p-5">
-                <button onClick={() => go('profile', top.model.id)} className="flex items-center gap-3 text-left group">
-                  <Avatar
-                    name={top.model.name}
-                    emoji={top.model.emoji}
-                    accent={top.model.accent}
-                    size={60}
-                    photoUrl={top.model.photoUrl}
-                    ring
-                  />
-                  <div>
-                    <p className="font-display text-xl font-bold text-content group-hover:text-gold transition-colors">{top.model.name}</p>
-                    <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: scoreTier(top.metric).color }}>
-                      <Flame size={13} />
-                      {top.metric} {metricLabel} · {scoreTier(top.metric).label}
-                    </p>
-                  </div>
-                </button>
-                {topStats.latestCard && (
-                  <div className="mt-3">
-                    <ScoreRadar height={220} series={[{ name: top.model.name, color: top.model.accent, scores: topStats.latestCard.scores }]} />
-                  </div>
+              <div className="relative overflow-hidden">
+                {top.model.photoUrl && (
+                  <>
+                    <div
+                      className="absolute inset-0 bg-cover bg-top opacity-20 blur-[3px] scale-105"
+                      style={{ backgroundImage: `url(${top.model.photoUrl})` }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-surface/60 to-surface" />
+                  </>
                 )}
-                <button onClick={() => go('profile', top.model.id)} className="btn-ghost mt-2 w-full">
-                  View profile <ArrowRight size={15} />
-                </button>
+                <div className="relative p-5">
+                  <button onClick={() => go('profile', top.model.id)} className="group flex items-center gap-3 text-left">
+                    <Avatar
+                      name={top.model.name}
+                      emoji={top.model.emoji}
+                      accent={top.model.accent}
+                      size={60}
+                      photoUrl={top.model.photoUrl}
+                      ring
+                    />
+                    <div>
+                      <p className="font-display text-xl font-bold text-content transition-colors group-hover:text-gold">{top.model.name}</p>
+                      <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: scoreTier(top.metric).color }}>
+                        <Flame size={13} />
+                        {top.metric} {metricLabel} · {scoreTier(top.metric).label}
+                      </p>
+                    </div>
+                  </button>
+                  {topStats.latestCard && (
+                    <div className="mt-3">
+                      <ScoreRadar height={220} series={[{ name: top.model.name, color: top.model.accent, scores: topStats.latestCard.scores }]} />
+                    </div>
+                  )}
+                  <button onClick={() => go('profile', top.model.id)} className="btn-ghost mt-2 w-full">
+                    View profile <ArrowRight size={15} />
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -274,7 +415,7 @@ export function Dashboard() {
           <div className="card overflow-hidden lg:col-span-2">
             <div className="flex items-center justify-between border-b border-line px-5 py-3">
               <h2 className="font-display text-base font-bold text-content">Top Rankings</h2>
-              <button onClick={() => go('leaderboard')} className="btn-quiet text-xs gap-1">
+              <button onClick={() => go('leaderboard')} className="btn-quiet gap-1 text-xs">
                 Full board <ArrowRight size={13} />
               </button>
             </div>
@@ -287,7 +428,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* ── Bottom row ───────────────────────────────────────────────────── */}
+      {/* ── Bottom row ───────────────────────────────────────────────────────── */}
       <div className="grid gap-5 lg:grid-cols-3">
 
         {improved && (
@@ -298,14 +439,19 @@ export function Dashboard() {
             <div className="p-5">
               <button
                 onClick={() => go('profile', improved.stats.model.id)}
-                className="flex w-full items-center gap-3 rounded-xl border border-line bg-surface2 p-3 text-left transition hover:border-good/50"
+                className="relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-line bg-surface2 p-3 text-left transition hover:border-good/50"
               >
-                <Avatar name={improved.stats.model.name} emoji={improved.stats.model.emoji} accent={improved.stats.model.accent} size={42} photoUrl={improved.stats.model.photoUrl} />
-                <div className="flex-1 min-w-0">
-                  <p className="truncate font-semibold text-content">{improved.stats.model.name}</p>
-                  <p className="text-xs text-muted">Climbing across clips</p>
+                {improved.stats.model.photoUrl && (
+                  <div className="absolute inset-0 opacity-15 bg-cover bg-center" style={{ backgroundImage: `url(${improved.stats.model.photoUrl})` }} />
+                )}
+                <div className="relative flex w-full items-center gap-3">
+                  <Avatar name={improved.stats.model.name} emoji={improved.stats.model.emoji} accent={improved.stats.model.accent} size={42} photoUrl={improved.stats.model.photoUrl} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-content">{improved.stats.model.name}</p>
+                    <p className="text-xs text-muted">Climbing across clips</p>
+                  </div>
+                  <span className="urban-num shrink-0 text-2xl text-good">+{improved.delta}</span>
                 </div>
-                <span className="urban-num text-2xl text-good">+{improved.delta}</span>
               </button>
             </div>
           </div>
@@ -332,7 +478,7 @@ export function Dashboard() {
                         <p className="truncate text-sm font-semibold text-content">{m.name}</p>
                         <p className="truncate text-xs text-muted">{clip ? clip.title : formatDate(c.date)}</p>
                       </div>
-                      <span className="urban-num text-xl shrink-0" style={{ color: scoreTier(c.total).color }}>{c.total}</span>
+                      <span className="urban-num shrink-0 text-xl" style={{ color: scoreTier(c.total).color }}>{c.total}</span>
                     </button>
                   )
                 })}
