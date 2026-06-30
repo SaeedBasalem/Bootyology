@@ -116,7 +116,7 @@ export interface JudgeProfile {
 }
 
 // ── Daily Challenge ───────────────────────────────────────────────────────────
-export type ChallengeType = 'focus_criterion' | 'model_rotation' | 'discovery' | 'marathon'
+export type ChallengeType = 'focus_criterion' | 'model_rotation' | 'discovery' | 'marathon' | 'clip_watch' | 'goon_challenge'
 
 export interface DailyChallenge {
   id: string

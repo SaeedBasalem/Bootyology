@@ -76,6 +76,7 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   // ── watch step state ──────────────────────────────────────────────────────
   const [videoEnded, setVideoEnded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const lastValidTimeRef = useRef(0)   // furthest point reached during natural playback
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [blobLoading, setBlobLoading] = useState(false)
   const [blobMissing, setBlobMissing] = useState(false)
@@ -104,6 +105,7 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
     setBlobUrl(null)
     setBlobMissing(false)
     setBlobLoading(false)
+    lastValidTimeRef.current = 0   // reset seek-guard whenever clip changes
 
     if (step === 'watch' && selectedClip?.source === 'file') {
       setBlobLoading(true)
@@ -429,6 +431,20 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
                 controls
                 autoPlay
                 className="h-full w-full"
+                onTimeUpdate={() => {
+                  const v = videoRef.current
+                  if (!v || v.seeking) return
+                  // Track the furthest point reached via natural playback
+                  lastValidTimeRef.current = Math.max(lastValidTimeRef.current, v.currentTime)
+                }}
+                onSeeking={() => {
+                  const v = videoRef.current
+                  if (!v) return
+                  // Block forward seeks — allow rewinding only
+                  if (v.currentTime > lastValidTimeRef.current + 0.5) {
+                    v.currentTime = lastValidTimeRef.current
+                  }
+                }}
                 onEnded={() => {
                   setVideoEnded(true)
                   setTimeout(() => setStep('score'), 800)
@@ -476,10 +492,11 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
 
           {/* Status + navigation */}
           <div className="mt-5 space-y-3">
-            {urlType === 'direct-video' && !videoEnded && (
-              <div className="flex items-center gap-2 rounded-lg border border-gold/20 bg-gold/8 px-3 py-2.5 text-xs text-gold">
+            {/* Mandatory watch gate — direct video must play to the end, no skip */}
+            {urlType === 'direct-video' && !videoEnded && !blobMissing && !blobLoading && (
+              <div className="flex items-center gap-2 rounded-lg border border-cm-red/30 bg-cm-red/8 px-3 py-2.5 text-xs font-medium text-cm-red">
                 <Play size={12} className="shrink-0" />
-                Watch the full clip — scoring unlocks when it ends.
+                Watching is mandatory — scoring unlocks automatically when the clip ends.
               </div>
             )}
 
@@ -494,29 +511,18 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
               <button className="btn-ghost" onClick={() => setStep('setup')}>
                 ← Back
               </button>
-              <div className="flex items-center gap-2">
-                {urlType === 'direct-video' && !videoEnded && (
-                  <button
-                    className="btn-ghost text-xs text-muted"
-                    onClick={() => setStep('score')}
-                  >
-                    Skip →
-                  </button>
-                )}
-                {(urlType !== 'direct-video' || videoEnded) && (
-                  <button
-                    className="btn-cm flex items-center gap-2"
-                    onClick={() => setStep('score')}
-                  >
-                    {urlType === 'direct-video' ? (
-                      <><CheckCircle2 size={14} /> Start judging</>
-                    ) : (
-                      <><CheckCircle2 size={14} /> Done watching</>
-                    )}
-                    <ChevronRight size={14} />
-                  </button>
-                )}
-              </div>
+
+              {/* Advance button only when allowed — no skip for direct video */}
+              {!blobLoading && (urlType !== 'direct-video' || videoEnded || blobMissing) && (
+                <button
+                  className="btn-cm flex items-center gap-2"
+                  onClick={() => setStep('score')}
+                >
+                  <CheckCircle2 size={14} />
+                  {urlType === 'direct-video' && videoEnded ? 'Start judging' : 'Done watching'}
+                  <ChevronRight size={14} />
+                </button>
+              )}
             </div>
           </div>
         </>

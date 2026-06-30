@@ -8,11 +8,13 @@ import type { Achievement } from '../lib/achievements'
 import { Crown, Flame, Star } from 'lucide-react'
 
 const CATEGORY_META: Record<Achievement['category'], { label: string; icon: string; color: string; bg: string }> = {
-  judging:  { label: 'Judging',  icon: '⚖️', color: '#e3bc63',       bg: 'rgba(227,188,99,0.06)'  },
-  roster:   { label: 'Roster',   icon: '🌟', color: '#7aa7d8',       bg: 'rgba(122,167,216,0.06)' },
-  scoring:  { label: 'Scoring',  icon: '📊', color: 'var(--good)',   bg: 'rgba(111,194,141,0.06)' },
-  ritual:   { label: 'Ritual',   icon: '🔥', color: 'var(--rose)',   bg: 'rgba(217,138,138,0.06)' },
-  legend:   { label: 'Legend',   icon: '👑', color: 'var(--gold)',   bg: 'rgba(227,188,99,0.08)'  },
+  judging:   { label: 'Judging',   icon: '⚖️', color: '#e3bc63',       bg: 'rgba(227,188,99,0.06)'  },
+  roster:    { label: 'Roster',    icon: '🌟', color: '#7aa7d8',       bg: 'rgba(122,167,216,0.06)' },
+  scoring:   { label: 'Scoring',   icon: '📊', color: 'var(--good)',   bg: 'rgba(111,194,141,0.06)' },
+  ritual:    { label: 'Ritual',    icon: '🔥', color: 'var(--rose)',   bg: 'rgba(217,138,138,0.06)' },
+  legend:    { label: 'Legend',    icon: '👑', color: 'var(--gold)',   bg: 'rgba(227,188,99,0.08)'  },
+  clips:     { label: 'Clips',     icon: '🎬', color: '#c88ad8',       bg: 'rgba(200,138,216,0.06)' },
+  endurance: { label: 'Endurance', icon: '🛡️', color: '#e84030',       bg: 'rgba(232,64,48,0.06)'   },
 }
 
 export function Achievements() {
@@ -22,7 +24,7 @@ export function Achievements() {
   const summary = achievementSummary(data)
   const hallOfFame = leaderboard(data, 'best').slice(0, 5)
   const levelInfo = getJudgeLevelInfo(data)
-  const categories = ['judging', 'roster', 'scoring', 'ritual', 'legend'] as const
+  const categories = ['judging', 'clips', 'endurance', 'roster', 'scoring', 'ritual', 'legend'] as const
   const unlockedCount = list.filter((a) => a.achieved).length
 
   return (
