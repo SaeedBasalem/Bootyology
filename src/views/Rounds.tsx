@@ -68,9 +68,36 @@ export function Rounds() {
                     className="flex min-w-0 flex-1 items-center gap-3 text-left"
                     onClick={() => setExpanded(isOpen ? null : round.id)}
                   >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface2 text-gold">
-                      <Layers size={20} />
-                    </div>
+                    {/* Stacked model faces — replace generic icon when scorecards exist */}
+                    {cards.length > 0 ? (
+                      <div className="flex shrink-0 -space-x-2.5">
+                        {cards.slice(0, 4).map((card, ci) => {
+                          const m = data.models.find((x) => x.id === card.modelId)
+                          if (!m) return null
+                          return (
+                            <div
+                              key={card.id}
+                              className="rounded-full ring-2 ring-surface"
+                              style={{ zIndex: 4 - ci }}
+                            >
+                              <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={36} photoUrl={m.photoUrl} />
+                            </div>
+                          )
+                        })}
+                        {cards.length > 4 && (
+                          <div
+                            className="flex h-9 w-9 items-center justify-center rounded-full bg-surface2 ring-2 ring-surface text-[10px] font-bold text-muted"
+                            style={{ zIndex: 0 }}
+                          >
+                            +{cards.length - 4}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface2 text-gold">
+                        <Layers size={20} />
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <p className="truncate font-display text-lg font-semibold text-content">{round.name}</p>
                       <p className="text-xs text-muted">
@@ -111,7 +138,7 @@ export function Rounds() {
                               className="flex w-full items-center gap-3 rounded-lg bg-surface p-2.5 text-left transition hover:bg-surface2"
                             >
                               <span className="w-5 text-center font-display font-bold text-muted">{i + 1}</span>
-                              <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={34} />
+                              <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={34} photoUrl={m.photoUrl} />
                               <span className="flex-1 truncate text-sm font-medium text-content">{m.name}</span>
                               <span className="font-display text-lg font-bold" style={{ color: scoreTier(card.total).color }}>
                                 {card.total}

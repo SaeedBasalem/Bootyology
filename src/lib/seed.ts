@@ -35,6 +35,12 @@ const models: Model[] = [
     notes: 'The number one. The benchmark every round is measured against.',
     favorite: true,
     archived: false,
+    photoUrl: 'https://i.pravatar.cc/400?img=47',
+    photos: [
+      'https://i.pravatar.cc/400?img=48',
+      'https://i.pravatar.cc/400?img=49',
+      'https://i.pravatar.cc/400?img=50',
+    ],
     createdAt: now,
   },
   {
@@ -47,6 +53,12 @@ const models: Model[] = [
     notes: 'One of the curvy icons that got me into the BBW space.',
     favorite: true,
     archived: false,
+    photoUrl: 'https://i.pravatar.cc/400?img=21',
+    photos: [
+      'https://i.pravatar.cc/400?img=22',
+      'https://i.pravatar.cc/400?img=23',
+      'https://i.pravatar.cc/400?img=24',
+    ],
     createdAt: now,
   },
   {
@@ -59,6 +71,12 @@ const models: Model[] = [
     notes: 'A curvy icon — part of what opened up the BBW appreciation.',
     favorite: true,
     archived: false,
+    photoUrl: 'https://i.pravatar.cc/400?img=32',
+    photos: [
+      'https://i.pravatar.cc/400?img=33',
+      'https://i.pravatar.cc/400?img=34',
+      'https://i.pravatar.cc/400?img=35',
+    ],
     createdAt: now,
   },
   {
@@ -71,6 +89,12 @@ const models: Model[] = [
     notes: 'Unforgettable — always in the conversation.',
     favorite: true,
     archived: false,
+    photoUrl: 'https://i.pravatar.cc/400?img=10',
+    photos: [
+      'https://i.pravatar.cc/400?img=11',
+      'https://i.pravatar.cc/400?img=12',
+      'https://i.pravatar.cc/400?img=13',
+    ],
     createdAt: now,
   },
   {
@@ -83,6 +107,12 @@ const models: Model[] = [
     notes: 'One of the first two I ever discovered — where it all started.',
     favorite: true,
     archived: false,
+    photoUrl: 'https://i.pravatar.cc/400?img=18',
+    photos: [
+      'https://i.pravatar.cc/400?img=19',
+      'https://i.pravatar.cc/400?img=20',
+      'https://i.pravatar.cc/400?img=37',
+    ],
     createdAt: now,
   },
   {
@@ -95,6 +125,12 @@ const models: Model[] = [
     notes: 'One of the first two discovered — kicked off this whole interest.',
     favorite: true,
     archived: false,
+    photoUrl: 'https://i.pravatar.cc/400?img=60',
+    photos: [
+      'https://i.pravatar.cc/400?img=61',
+      'https://i.pravatar.cc/400?img=62',
+      'https://i.pravatar.cc/400?img=63',
+    ],
     createdAt: now,
   },
 ]

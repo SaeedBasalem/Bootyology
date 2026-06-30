@@ -7,7 +7,7 @@ import {
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
 import { useActions } from '../components/ActionsProvider'
-import { Avatar, Badge, Stat, EmptyState, ProgressBar } from '../components/ui'
+import { Avatar, Badge, Stat, EmptyState, ProgressBar, CyclingPhoto } from '../components/ui'
 import { ClipCard } from '../components/ClipCard'
 import { ScoreRadar, TrendChart } from '../components/Charts'
 import { CRITERIA, CRITERIA_BY_KEY } from '../lib/criteria'
@@ -70,9 +70,6 @@ export function ModelProfile() {
     toast({ title: 'Scorecard deleted' })
   }
 
-  // Collect all model photos for background mosaic
-  const bgPhotos = allPhotos.slice(0, 6)
-
   return (
     <div className="space-y-6">
       {/* Lightbox */}
@@ -112,16 +109,22 @@ export function ModelProfile() {
       {/* ── Hero card — photo mosaic background ─────────────────────────────── */}
       <div className="relative overflow-hidden rounded-2xl border border-line bg-black shadow-card">
 
-        {/* Photo mosaic background */}
-        {bgPhotos.length > 0 ? (
+        {/* Photo mosaic background — each strip cycles through all photos with a
+            staggered delay, creating a cascading shutter effect */}
+        {allPhotos.length > 0 ? (
           <div className="absolute inset-0 flex overflow-hidden">
-            {bgPhotos.map((p, i) => (
-              <div
-                key={i}
-                className="flex-1 bg-cover bg-center"
-                style={{ backgroundImage: `url(${p})`, minWidth: 0 }}
-              />
-            ))}
+            {Array.from({ length: Math.max(3, Math.min(6, allPhotos.length)) }).map((_, i) => {
+              const stagger = Math.round(4500 / Math.max(3, allPhotos.length))
+              return (
+                <div key={i} className="relative flex-1 overflow-hidden" style={{ minWidth: 0 }}>
+                  <CyclingPhoto
+                    photos={allPhotos}
+                    startDelay={i * stagger}
+                    intervalMs={4500}
+                  />
+                </div>
+              )
+            })}
             {/* Dark overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/75 to-black/60" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50" />
@@ -135,14 +138,22 @@ export function ModelProfile() {
 
         <div className="relative p-6 sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            {/* Main photo */}
-            {model.photoUrl ? (
+            {/* Main photo — cycles through gallery automatically */}
+            {allPhotos.length > 0 ? (
               <button
                 onClick={() => setLightboxIndex(0)}
-                className="shrink-0 overflow-hidden rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] ring-2 transition hover:ring-4"
+                className="relative shrink-0 h-36 w-36 sm:h-44 sm:w-44 overflow-hidden rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] ring-2 transition hover:ring-4"
                 style={{ '--tw-ring-color': model.accent } as React.CSSProperties}
               >
-                <img src={model.photoUrl} alt={model.name} className="h-36 w-36 object-cover sm:h-44 sm:w-44" />
+                <CyclingPhoto photos={allPhotos} alt={model.name} intervalMs={3500} />
+                {/* Dot indicator along the bottom */}
+                {allPhotos.length > 1 && (
+                  <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1">
+                    {allPhotos.map((_, di) => (
+                      <span key={di} className="inline-block h-1 w-1 rounded-full bg-white/70" />
+                    ))}
+                  </div>
+                )}
               </button>
             ) : (
               <Avatar name={model.name} emoji={model.emoji} accent={model.accent} size={112} ring />

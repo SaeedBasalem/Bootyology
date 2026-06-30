@@ -3,7 +3,7 @@ import { Plus, Search, Pencil, Heart, ClipboardPlus, Users, LayoutGrid, List, Ma
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
 import { useActions } from '../components/ActionsProvider'
-import { SectionHeader, Avatar, Badge, EmptyState } from '../components/ui'
+import { SectionHeader, Avatar, Badge, EmptyState, CyclingPhoto } from '../components/ui'
 import { statsForModel, scoreTier, daysSinceLastScore } from '../lib/scoring'
 import { classNames } from '../lib/util'
 
@@ -164,12 +164,25 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
             <button onClick={() => go('profile', m.id)} className="block w-full">
               {m.photoUrl ? (
                 <div className="relative h-60 w-full overflow-hidden">
-                  <img
-                    src={m.photoUrl}
+                  {/* Auto-cycle through all model photos every 4.5 s */}
+                  <CyclingPhoto
+                    photos={[m.photoUrl, ...(m.photos ?? [])]}
                     alt={m.name}
-                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    intervalMs={4500}
                   />
+                  {/* Subtle scale on hover via the group class */}
+                  <div className="absolute inset-0 transition duration-500 group-hover:scale-105 pointer-events-none" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
+                  {/* Photo count pip */}
+                  {(m.photos ?? []).length > 0 && (
+                    <div className="absolute bottom-[72px] left-3">
+                      <span className="flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white/70 backdrop-blur-sm">
+                        {Array.from({ length: Math.min((m.photos ?? []).length + 1, 5) }).map((_, di) => (
+                          <span key={di} className="inline-block h-1 w-1 rounded-full bg-white/60" />
+                        ))}
+                      </span>
+                    </div>
+                  )}
                   {/* Rank badge — jersey style */}
                   <div className="absolute left-3 top-3">
                     <span

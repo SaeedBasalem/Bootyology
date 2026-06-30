@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { classNames } from '../lib/util'
 import { useStore } from '../lib/store'
@@ -267,4 +267,51 @@ export function Toasts() {
 /** Skeleton loading block */
 export function Skeleton({ className }: { className?: string }) {
   return <div className={classNames('animate-shimmer rounded-xl', className)} />
+}
+
+/**
+ * Renders all photos absolutely positioned inside a `relative overflow-hidden`
+ * container and crossfades between them on an interval.
+ *
+ * Parent must be `position: relative` with explicit dimensions.
+ * Pass `startDelay` to stagger multiple instances (mosaic shutter effect).
+ */
+export function CyclingPhoto({
+  photos,
+  alt = '',
+  intervalMs = 4500,
+  startDelay = 0,
+}: {
+  photos: string[]
+  alt?: string
+  intervalMs?: number
+  startDelay?: number
+}) {
+  const [idx, setIdx] = useState(0)
+
+  useEffect(() => {
+    if (photos.length <= 1) return
+    let intervalId: ReturnType<typeof setInterval>
+    const timeoutId = setTimeout(() => {
+      intervalId = setInterval(() => setIdx((c) => (c + 1) % photos.length), intervalMs)
+    }, startDelay)
+    return () => {
+      clearTimeout(timeoutId)
+      clearInterval(intervalId)
+    }
+  }, [photos.length, intervalMs, startDelay])
+
+  return (
+    <>
+      {photos.map((src, i) => (
+        <img
+          key={src}
+          src={src}
+          alt={alt}
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ opacity: i === idx ? 1 : 0, transition: 'opacity 1s ease-in-out' }}
+        />
+      ))}
+    </>
+  )
 }
