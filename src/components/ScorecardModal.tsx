@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Save, Sparkles, Plus, Heart, Smile, Zap, Star, Film,
-  AlertCircle, Layers, Play, ExternalLink, ChevronRight, CheckCircle2, Loader2, Volume2,
+  AlertCircle, Layers, Play, ExternalLink, ChevronRight, CheckCircle2, Loader2, Volume2, Maximize2,
 } from 'lucide-react'
 import { Modal } from './ui'
 import { useStore } from '../lib/store'
@@ -82,6 +82,9 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   const [videoEnded, setVideoEnded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const lastValidTimeRef = useRef(0)   // furthest point reached during natural playback
+  const isFullscreenRef = useRef(false) // sync mirror of isFullscreen for use in video callbacks
+  const hasEnteredFsRef = useRef(false) // did we ever successfully enter fullscreen this session?
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [blobLoading, setBlobLoading] = useState(false)
   const [blobMissing, setBlobMissing] = useState(false)
@@ -137,10 +140,9 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
     }
   }, [step, selectedClip?.id, selectedClip?.source])
 
-  // Intercept ESC during mandatory watching so the Modal can never close.
-  // Uses capture phase so it fires before any other ESC listener.
-  // The CSS overlay (fixed inset-0 z-[9999]) already covers the full viewport —
-  // we don't use browser fullscreen API at all, so ESC has nothing to exit.
+  // Block ESC from closing the Modal (capture phase fires before Modal's listener).
+  // Note: ESC WILL still exit browser fullscreen — that's enforced by the browser and
+  // cannot be prevented. The fullscreenchange handler immediately re-requests entry.
   useEffect(() => {
     if (step !== 'watch' || urlType !== 'direct-video' || blobLoading || blobMissing || videoEnded) return
     const stopEsc = (e: KeyboardEvent) => {
@@ -152,6 +154,43 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
     document.addEventListener('keydown', stopEsc, true)
     return () => document.removeEventListener('keydown', stopEsc, true)
   }, [step, urlType, blobLoading, blobMissing, videoEnded])
+
+  // Track fullscreen state. When the user exits (ESC or X), attempt immediate
+  // re-entry — we're still inside the browser's user-gesture window (ESC is a
+  // user action, so fullscreenchange fires with transient activation still live).
+  // If re-entry is blocked, the lockout screen shows and video pauses.
+  useEffect(() => {
+    const onFsChange = () => {
+      const inFs = !!document.fullscreenElement
+      isFullscreenRef.current = inFs
+      setIsFullscreen(inFs)
+      if (inFs) {
+        hasEnteredFsRef.current = true
+        videoRef.current?.play().catch(() => {}) // resume after returning from lockout
+      } else if (step === 'watch' && !videoEnded) {
+        // Synchronous re-request while still in user-gesture window
+        document.documentElement.requestFullscreen?.().catch(() => {
+          // Browser blocked re-entry — lockout shows, video pauses via onPause guard
+        })
+      }
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, videoEnded])
+
+  // Exit fullscreen when the watch step ends or the modal closes
+  useEffect(() => {
+    if (step !== 'watch' && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    }
+  }, [step])
+
+  useEffect(() => {
+    if (!open && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    }
+  }, [open])
 
   const total = computeTotal(scores)
   const tier = scoreTier(total)
@@ -191,7 +230,13 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
       return
     }
     setVideoEnded(false)
+    hasEnteredFsRef.current = false
+    isFullscreenRef.current = false
+    setIsFullscreen(false)
     setStep('watch')
+    // Request fullscreen here — inside the button click = user-gesture context,
+    // so the browser allows it without a popup or denial.
+    document.documentElement.requestFullscreen?.().catch(() => {})
   }
 
   function handleSave() {
@@ -756,7 +801,10 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
                   v.currentTime = lastValidTimeRef.current
                 }
               }}
-              onPause={() => { videoRef.current?.play().catch(() => {}) }}
+              onPause={() => {
+                // Auto-resume only while in fullscreen; stay paused during lockout
+                if (isFullscreenRef.current) videoRef.current?.play().catch(() => {})
+              }}
               onLoadedMetadata={() => {
                 const v = videoRef.current
                 if (!v) return
@@ -786,6 +834,29 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
                   <p className="text-xl font-bold text-white">Clip complete</p>
                   <p className="mt-1 text-sm text-white/45">Opening judge panel…</p>
                 </div>
+              </div>
+            )}
+
+            {/* Fullscreen lockout — appears if the judge exits fullscreen before the clip ends.
+                Video is paused while this is visible (onPause guard). z-20 sits above the video. */}
+            {hasEnteredFsRef.current && !isFullscreen && !videoEnded && (
+              <div
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-black animate-fade-in"
+                style={{ cursor: 'default' }}
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-cm-red/50 bg-cm-red/10">
+                  <Maximize2 size={28} className="text-cm-red" />
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-white">Fullscreen required</p>
+                  <p className="mt-1 text-sm text-white/45">Clip paused. Return to fullscreen to continue.</p>
+                </div>
+                <button
+                  className="btn-cm flex items-center gap-2"
+                  onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
+                >
+                  <Maximize2 size={14} /> Return to fullscreen
+                </button>
               </div>
             )}
 
