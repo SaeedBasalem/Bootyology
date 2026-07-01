@@ -81,16 +81,13 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   // ── watch step state ──────────────────────────────────────────────────────
   const [videoEnded, setVideoEnded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
-  const watchOverlayRef = useRef<HTMLDivElement>(null)
   const lastValidTimeRef = useRef(0)   // furthest point reached during natural playback
-  const hasEnteredFsRef = useRef(false) // did we ever successfully enter fullscreen?
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [blobLoading, setBlobLoading] = useState(false)
   const [blobMissing, setBlobMissing] = useState(false)
   const [volume, setVolume] = useState(1)
   const [videoProgress, setVideoProgress] = useState(0)
   const [videoDuration, setVideoDuration] = useState(0)
-  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // ── derived ───────────────────────────────────────────────────────────────
   const modelClips = useMemo(
@@ -141,65 +138,20 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   }, [step, selectedClip?.id, selectedClip?.source])
 
   // Intercept ESC during mandatory watching so the Modal can never close.
-  // Uses capture phase so it fires before the Modal's window-level listener.
-  // Note: browsers always exit fullscreen on ESC regardless — the fullscreenchange
-  // handler above immediately re-requests entry to keep the user locked in.
+  // Uses capture phase so it fires before any other ESC listener.
+  // The CSS overlay (fixed inset-0 z-[9999]) already covers the full viewport —
+  // we don't use browser fullscreen API at all, so ESC has nothing to exit.
   useEffect(() => {
     if (step !== 'watch' || urlType !== 'direct-video' || blobLoading || blobMissing || videoEnded) return
     const stopEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopImmediatePropagation()
-        e.preventDefault() // belt-and-suspenders; browsers ignore this for fullscreen but costs nothing
+        e.preventDefault()
       }
     }
     document.addEventListener('keydown', stopEsc, true)
     return () => document.removeEventListener('keydown', stopEsc, true)
   }, [step, urlType, blobLoading, blobMissing, videoEnded])
-
-  // Request browser fullscreen on the watch overlay; silently fail if denied
-  useEffect(() => {
-    if (step !== 'watch' || urlType !== 'direct-video' || blobLoading || blobMissing || !effectiveClipUrl) return
-    const el = watchOverlayRef.current
-    if (!el) return
-    const timer = setTimeout(() => {
-      el.requestFullscreen?.().catch(() => {})
-    }, 150)
-    return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, urlType, blobLoading, blobMissing, effectiveClipUrl])
-
-  // Exit browser fullscreen when leaving the watch step
-  useEffect(() => {
-    if (step !== 'watch' && document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {})
-    }
-  }, [step])
-
-  // Track fullscreen state; re-enter IMMEDIATELY (synchronously in the event handler
-  // while still inside the browser's user-gesture window — a setTimeout would miss it)
-  useEffect(() => {
-    const onFsChange = () => {
-      const inFs = !!document.fullscreenElement
-      if (inFs) {
-        hasEnteredFsRef.current = true
-        setIsFullscreen(true)
-        return
-      }
-      // Exited fullscreen — attempt immediate re-entry synchronously
-      setIsFullscreen(false)
-      if (step === 'watch' && urlType === 'direct-video' && !videoEnded && !blobLoading && !blobMissing) {
-        const el = watchOverlayRef.current
-        if (el) {
-          el.requestFullscreen().catch(() => {
-            // Browser blocked re-entry — lockout screen will show via state update above
-          })
-        }
-      }
-    }
-    document.addEventListener('fullscreenchange', onFsChange)
-    return () => document.removeEventListener('fullscreenchange', onFsChange)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, urlType, videoEnded, blobLoading, blobMissing])
 
   const total = computeTotal(scores)
   const tier = scoreTier(total)
@@ -541,7 +493,7 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
             {urlType === 'direct-video' && !blobLoading && !blobMissing && !videoEnded && (
               <div className="flex items-center gap-2 rounded-lg border border-cm-red/30 bg-cm-red/8 px-3 py-2.5 text-xs font-medium text-cm-red">
                 <Play size={12} className="shrink-0" />
-                Clip is playing in fullscreen — watching is mandatory before scoring.
+                Clip is playing — watching is mandatory before scoring.
               </div>
             )}
 
@@ -782,7 +734,6 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
       ─────────────────────────────────────────────────────────────────────── */}
       {step === 'watch' && urlType === 'direct-video' && !blobLoading && !blobMissing && effectiveClipUrl && (
         <div
-          ref={watchOverlayRef}
           className="fixed inset-0 z-[9999] flex flex-col bg-black select-none"
         >
           {/* Video area — cursor hidden so browser native fullscreen controls cannot be triggered */}
@@ -838,27 +789,6 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
               </div>
             )}
 
-            {/* Fullscreen-exit lockout — shown if user escaped browser fullscreen */}
-            {hasEnteredFsRef.current && !isFullscreen && !videoEnded && (
-              <div
-                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-black/95 animate-fade-in"
-                style={{ cursor: 'default' }}
-              >
-                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-cm-red/50 bg-cm-red/10">
-                  <Play size={28} className="text-cm-red" />
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-white">Watching is mandatory</p>
-                  <p className="mt-1 text-sm text-white/45">Return to fullscreen to continue.</p>
-                </div>
-                <button
-                  className="btn-cm flex items-center gap-2"
-                  onClick={() => watchOverlayRef.current?.requestFullscreen?.().catch(() => {})}
-                >
-                  Return to fullscreen
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Bottom gradient */}
