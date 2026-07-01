@@ -83,12 +83,14 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   const videoRef = useRef<HTMLVideoElement>(null)
   const watchOverlayRef = useRef<HTMLDivElement>(null)
   const lastValidTimeRef = useRef(0)   // furthest point reached during natural playback
+  const hasEnteredFsRef = useRef(false) // did we ever successfully enter fullscreen?
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [blobLoading, setBlobLoading] = useState(false)
   const [blobMissing, setBlobMissing] = useState(false)
   const [volume, setVolume] = useState(1)
   const [videoProgress, setVideoProgress] = useState(0)
   const [videoDuration, setVideoDuration] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   // ── derived ───────────────────────────────────────────────────────────────
   const modelClips = useMemo(
@@ -166,6 +168,25 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
       document.exitFullscreen().catch(() => {})
     }
   }, [step])
+
+  // Track fullscreen state; auto-re-enter if user exits during mandatory watching
+  useEffect(() => {
+    const onFsChange = () => {
+      const inFs = !!document.fullscreenElement
+      if (inFs) hasEnteredFsRef.current = true
+      setIsFullscreen(inFs)
+      // Try to re-enter automatically — may fail without user gesture; lockout screen handles that
+      if (!inFs && step === 'watch' && urlType === 'direct-video' && !videoEnded && !blobLoading && !blobMissing) {
+        setTimeout(() => {
+          const el = watchOverlayRef.current
+          if (el && !document.fullscreenElement) el.requestFullscreen?.().catch(() => {})
+        }, 250)
+      }
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, urlType, videoEnded, blobLoading, blobMissing])
 
   const total = computeTotal(scores)
   const tier = scoreTier(total)
@@ -751,31 +772,8 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
           ref={watchOverlayRef}
           className="fixed inset-0 z-[9999] flex flex-col bg-black select-none"
         >
-          {/* Top gradient */}
-          <div
-            className="pointer-events-none absolute left-0 right-0 top-0 z-10 h-24"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.85), transparent)' }}
-          />
-
-          {/* Top controls */}
-          <div className="relative z-20 flex shrink-0 items-center gap-3 px-5 pt-4 pb-2">
-            <button
-              className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white/75 transition hover:bg-white/20 hover:text-white"
-              onClick={() => setStep('setup')}
-            >
-              ← Back to setup
-            </button>
-            <div className="flex-1 min-w-0 text-center">
-              <p className="truncate text-sm font-semibold text-white">{model?.emoji} {model?.name}</p>
-              {clipLabel && <p className="truncate text-[11px] text-white/40">{clipLabel}</p>}
-            </div>
-            <div className="shrink-0 rounded-lg border border-cm-red/50 bg-cm-red/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-cm-red">
-              Watch only
-            </div>
-          </div>
-
-          {/* Video — fills remaining space */}
-          <div className="relative flex-1 overflow-hidden">
+          {/* Video area — cursor hidden so browser native fullscreen controls cannot be triggered */}
+          <div className="relative flex-1 overflow-hidden" style={{ cursor: 'none' }}>
             <video
               ref={videoRef}
               src={effectiveClipUrl}
@@ -807,9 +805,16 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
               }}
             />
 
+            {/* Subtle model watermark — bottom-left of video, no interaction */}
+            {!videoEnded && (
+              <div className="pointer-events-none absolute bottom-16 left-5 z-10">
+                <p className="text-xs font-semibold text-white/30">{model?.emoji} {model?.name}</p>
+              </div>
+            )}
+
             {/* Ended success flash */}
             {videoEnded && (
-              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-black/80 animate-fade-in">
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-black/80 animate-fade-in" style={{ cursor: 'default' }}>
                 <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-good bg-good/15">
                   <CheckCircle2 size={40} className="text-good" />
                 </div>
@@ -819,17 +824,38 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
                 </div>
               </div>
             )}
+
+            {/* Fullscreen-exit lockout — shown if user escaped browser fullscreen */}
+            {hasEnteredFsRef.current && !isFullscreen && !videoEnded && (
+              <div
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-5 bg-black/95 animate-fade-in"
+                style={{ cursor: 'default' }}
+              >
+                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-cm-red/50 bg-cm-red/10">
+                  <Play size={28} className="text-cm-red" />
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-white">Watching is mandatory</p>
+                  <p className="mt-1 text-sm text-white/45">Return to fullscreen to continue.</p>
+                </div>
+                <button
+                  className="btn-cm flex items-center gap-2"
+                  onClick={() => watchOverlayRef.current?.requestFullscreen?.().catch(() => {})}
+                >
+                  Return to fullscreen
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Bottom gradient */}
           <div
-            className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-28"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)' }}
+            className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-24"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}
           />
 
-          {/* Bottom controls — volume only */}
-          <div className="relative z-20 shrink-0 px-6 pb-6 pt-2">
-            {/* Read-only progress bar */}
+          {/* Bottom controls — cursor restored, volume only */}
+          <div className="relative z-20 shrink-0 px-6 pb-5 pt-2" style={{ cursor: 'default' }}>
             <div className="mb-3 h-1 w-full overflow-hidden rounded-full bg-white/15">
               <div
                 className="h-full rounded-full transition-all duration-300"
@@ -857,7 +883,7 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
               <span className="ml-2 text-xs text-white/40">
                 {formatTime(videoProgress * videoDuration)} / {formatTime(videoDuration)}
               </span>
-              <span className="ml-auto text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(204,17,17,0.7)' }}>
+              <span className="ml-auto text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(204,17,17,0.65)' }}>
                 Watch to unlock scoring
               </span>
             </div>

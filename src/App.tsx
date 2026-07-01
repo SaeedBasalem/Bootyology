@@ -160,7 +160,7 @@ function Sidebar() {
           rel="noopener noreferrer"
           className="flex items-center gap-2.5 rounded-xl border border-line bg-surface2 px-3 py-2 text-xs text-muted transition hover:border-cm-red/40 hover:text-content"
         >
-          <span className="text-base">🍫</span>
+          <img src="/Bootyology/cm-logo.png" alt="CM" className="h-6 w-6 shrink-0 rounded object-contain" onError={(e) => { e.currentTarget.style.display='none'; const s=e.currentTarget.nextElementSibling as HTMLElement|null; if(s) s.style.display='inline' }} /><span style={{display:'none'}} className="text-base">🍫</span>
           <div className="min-w-0">
             <p className="truncate font-semibold text-content">Chocolate Models</p>
             <p className="truncate text-[10px] text-muted">Source &amp; inspiration</p>
@@ -230,7 +230,7 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
           rel="noopener noreferrer"
           className="mt-3 flex items-center gap-2.5 rounded-xl border border-line bg-surface2 px-3 py-2.5 text-xs text-muted transition hover:border-cm-red/40 hover:text-content"
         >
-          <span className="text-base">🍫</span>
+          <img src="/Bootyology/cm-logo.png" alt="CM" className="h-6 w-6 shrink-0 rounded object-contain" onError={(e) => { e.currentTarget.style.display='none'; const s=e.currentTarget.nextElementSibling as HTMLElement|null; if(s) s.style.display='inline' }} /><span style={{display:'none'}} className="text-base">🍫</span>
           <div className="min-w-0 flex-1">
             <p className="font-semibold text-content">Chocolate Models</p>
             <p className="text-[10px] text-muted">Source &amp; inspiration ↗</p>
