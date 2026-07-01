@@ -806,16 +806,16 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
       {step === 'watch' && urlType === 'direct-video' && !blobLoading && !blobMissing && effectiveClipUrl && createPortal(
         <div
           ref={watchOverlayRef}
-          className="fixed inset-0 z-[9999] flex flex-col bg-black select-none"
+          className="fixed inset-0 z-[9999] bg-black select-none"
+          style={{ cursor: controlsVisible ? 'default' : 'none' }}
           onMouseMove={showControlsTemporarily}
         >
-          {/* Cursor hidden while controls are hidden; shown when mouse moves */}
-          <div className="relative flex-1 overflow-hidden" style={{ cursor: controlsVisible ? 'default' : 'none' }}>
-            <video
+          {/* Video fills 100% of the overlay — object-cover eliminates all black bars */}
+          <video
               ref={videoRef}
               src={effectiveClipUrl}
               autoPlay
-              className="absolute inset-0 h-full w-full object-contain"
+              className="absolute inset-0 h-full w-full object-cover"
               onTimeUpdate={() => {
                 const v = videoRef.current
                 if (!v || v.seeking) return
@@ -888,17 +888,15 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
               </div>
             )}
 
-          </div>
-
           {/* Bottom gradient — fades with the controls */}
           <div
             className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-24 transition-opacity duration-700"
             style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)', opacity: controlsVisible ? 1 : 0 }}
           />
 
-          {/* Bottom controls — fade out when idle, fade in on mouse move */}
+          {/* Bottom controls — float over the video, fade out when idle */}
           <div
-            className="relative z-20 shrink-0 px-6 pb-5 pt-2 transition-opacity duration-700"
+            className="absolute bottom-0 left-0 right-0 z-20 px-6 pb-5 pt-2 transition-opacity duration-700"
             style={{ cursor: 'default', opacity: controlsVisible ? 1 : 0, pointerEvents: controlsVisible ? 'auto' : 'none' }}
           >
             <div className="mb-3 h-1 w-full overflow-hidden rounded-full bg-white/15">
