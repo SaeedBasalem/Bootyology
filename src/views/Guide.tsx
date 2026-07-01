@@ -6,7 +6,7 @@ export function Guide() {
     <div className="space-y-6">
       <SectionHeader
         title="Scoring guide"
-        subtitle={`The 10-criterion system — ${MAX_TOTAL} points possible. Same criteria, every round.`}
+        subtitle={`The 12-criterion CM v2 system — ${MAX_TOTAL} points possible. Same criteria, every round.`}
       />
 
       {/* Overview table */}

@@ -4,10 +4,12 @@ export type CriterionKey =
   | 'dancePerformance'
   | 'bodyHarmony'
   | 'sexAppeal'
-  | 'presentation'
-  | 'faceBeauty'
-  | 'nudity'
   | 'sensuality'
+  | 'faceBeauty'
+  | 'presentation'
+  | 'skinQuality'
+  | 'authenticity'
+  | 'nudity'
   | 'perfectBodyBonus'
 
 export type Scores = Record<CriterionKey, number>

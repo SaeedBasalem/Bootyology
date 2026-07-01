@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Save, Sparkles, Plus, Heart, Smile, Zap, Star, Film,
-  AlertCircle, Layers, Play, ExternalLink, ChevronRight, CheckCircle2, Loader2,
+  AlertCircle, Layers, Play, ExternalLink, ChevronRight, CheckCircle2, Loader2, Volume2,
 } from 'lucide-react'
 import { Modal } from './ui'
 import { useStore } from '../lib/store'
@@ -50,6 +50,11 @@ function toYouTubeEmbed(url: string): string {
   return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=1&rel=0` : url
 }
 
+function formatTime(s: number): string {
+  if (!Number.isFinite(s) || s < 0) return '0:00'
+  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+}
+
 export function ScorecardModal({ open, onClose, editing, presetModelId, presetClipId, presetRoundId }: Props) {
   const { data, saveScorecard, saveClip, toast } = useStore()
   const actions = useActions()
@@ -76,10 +81,14 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   // ── watch step state ──────────────────────────────────────────────────────
   const [videoEnded, setVideoEnded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const watchOverlayRef = useRef<HTMLDivElement>(null)
   const lastValidTimeRef = useRef(0)   // furthest point reached during natural playback
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [blobLoading, setBlobLoading] = useState(false)
   const [blobMissing, setBlobMissing] = useState(false)
+  const [volume, setVolume] = useState(1)
+  const [videoProgress, setVideoProgress] = useState(0)
+  const [videoDuration, setVideoDuration] = useState(0)
 
   // ── derived ───────────────────────────────────────────────────────────────
   const modelClips = useMemo(
@@ -128,6 +137,35 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [step, selectedClip?.id, selectedClip?.source])
+
+  // Intercept ESC while the mandatory watch overlay is active so the Modal can't close
+  useEffect(() => {
+    if (step !== 'watch' || urlType !== 'direct-video' || blobLoading || blobMissing || videoEnded) return
+    const stopEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') e.stopImmediatePropagation()
+    }
+    document.addEventListener('keydown', stopEsc, true)
+    return () => document.removeEventListener('keydown', stopEsc, true)
+  }, [step, urlType, blobLoading, blobMissing, videoEnded])
+
+  // Request browser fullscreen on the watch overlay; silently fail if denied
+  useEffect(() => {
+    if (step !== 'watch' || urlType !== 'direct-video' || blobLoading || blobMissing || !effectiveClipUrl) return
+    const el = watchOverlayRef.current
+    if (!el) return
+    const timer = setTimeout(() => {
+      el.requestFullscreen?.().catch(() => {})
+    }, 150)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, urlType, blobLoading, blobMissing, effectiveClipUrl])
+
+  // Exit browser fullscreen when leaving the watch step
+  useEffect(() => {
+    if (step !== 'watch' && document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {})
+    }
+  }, [step])
 
   const total = computeTotal(scores)
   const tier = scoreTier(total)
@@ -398,108 +436,67 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
             )}
           </div>
 
-          {/* Player area */}
-          <div className={classNames(
-            'relative w-full overflow-hidden rounded-2xl bg-black',
-            urlType === 'none' || urlType === 'external' || blobLoading || blobMissing ? 'aspect-[16/7]' : 'aspect-video',
-          )}>
-            {/* Loading blob from IndexedDB */}
-            {blobLoading && (
-              <div className="flex h-full flex-col items-center justify-center gap-3 text-muted">
-                <Loader2 size={32} className="animate-spin" />
-                <p className="text-sm">Loading clip…</p>
-              </div>
-            )}
-
-            {/* File not found in storage */}
-            {blobMissing && (
-              <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface2/80">
-                  <Film size={32} className="text-muted" />
+          {/* Player area — only for non-direct-video types (direct-video uses the fullscreen overlay below) */}
+          {(blobLoading || blobMissing || urlType !== 'direct-video') && (
+            <div className={classNames(
+              'relative w-full overflow-hidden rounded-2xl bg-black',
+              urlType === 'none' || urlType === 'external' || blobLoading || blobMissing ? 'aspect-[16/7]' : 'aspect-video',
+            )}>
+              {blobLoading && (
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-muted">
+                  <Loader2 size={32} className="animate-spin" />
+                  <p className="text-sm">Loading clip…</p>
                 </div>
-                <div>
-                  <p className="font-semibold text-content">File not found on this device</p>
-                  <p className="mt-1 text-xs text-muted">The stored video could not be loaded. Watch it elsewhere and come back.</p>
-                </div>
-              </div>
-            )}
+              )}
 
-            {!blobLoading && !blobMissing && urlType === 'direct-video' && effectiveClipUrl && (
-              <video
-                ref={videoRef}
-                src={effectiveClipUrl}
-                controls
-                autoPlay
-                className="h-full w-full"
-                onTimeUpdate={() => {
-                  const v = videoRef.current
-                  if (!v || v.seeking) return
-                  // Track the furthest point reached via natural playback
-                  lastValidTimeRef.current = Math.max(lastValidTimeRef.current, v.currentTime)
-                }}
-                onSeeking={() => {
-                  const v = videoRef.current
-                  if (!v) return
-                  // Block forward seeks — allow rewinding only
-                  if (v.currentTime > lastValidTimeRef.current + 0.5) {
-                    v.currentTime = lastValidTimeRef.current
-                  }
-                }}
-                onEnded={() => {
-                  setVideoEnded(true)
-                  setTimeout(() => setStep('score'), 800)
-                }}
-              />
-            )}
-
-            {!blobLoading && urlType === 'youtube' && effectiveClipUrl && (
-              <iframe
-                src={toYouTubeEmbed(effectiveClipUrl)}
-                className="h-full w-full border-0"
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-              />
-            )}
-
-            {!blobLoading && !blobMissing && (urlType === 'external' || urlType === 'none') && (
-              <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface2/80">
-                  <Film size={32} className="text-muted" />
+              {blobMissing && (
+                <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface2/80">
+                    <Film size={32} className="text-muted" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-content">File not found on this device</p>
+                    <p className="mt-1 text-xs text-muted">The stored video could not be loaded. Watch it elsewhere and come back.</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-content">
-                    {effectiveClipUrl ? 'External clip' : 'No URL linked'}
-                  </p>
-                  <p className="mt-1 text-xs text-muted">
-                    {effectiveClipUrl
-                      ? 'Open it in your browser, watch it fully, then come back to judge.'
-                      : 'No URL was provided for this clip. Watch it elsewhere and come back.'}
-                  </p>
+              )}
+
+              {!blobLoading && urlType === 'youtube' && effectiveClipUrl && (
+                <iframe
+                  src={toYouTubeEmbed(effectiveClipUrl)}
+                  className="h-full w-full border-0"
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  allowFullScreen
+                />
+              )}
+
+              {!blobLoading && !blobMissing && (urlType === 'external' || urlType === 'none') && (
+                <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-surface2/80">
+                    <Film size={32} className="text-muted" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-content">
+                      {effectiveClipUrl ? 'External clip' : 'No URL linked'}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {effectiveClipUrl
+                        ? 'Open it in your browser, watch it fully, then come back to judge.'
+                        : 'No URL was provided for this clip. Watch it elsewhere and come back.'}
+                    </p>
+                  </div>
+                  {effectiveClipUrl && (
+                    <a href={effectiveClipUrl} target="_blank" rel="noopener noreferrer" className="btn-gold flex items-center gap-2">
+                      <ExternalLink size={14} /> Open clip
+                    </a>
+                  )}
                 </div>
-                {effectiveClipUrl && (
-                  <a
-                    href={effectiveClipUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-gold flex items-center gap-2"
-                  >
-                    <ExternalLink size={14} /> Open clip
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           {/* Status + navigation */}
           <div className="mt-5 space-y-3">
-            {/* Mandatory watch gate — direct video must play to the end, no skip */}
-            {urlType === 'direct-video' && !videoEnded && !blobMissing && !blobLoading && (
-              <div className="flex items-center gap-2 rounded-lg border border-cm-red/30 bg-cm-red/8 px-3 py-2.5 text-xs font-medium text-cm-red">
-                <Play size={12} className="shrink-0" />
-                Watching is mandatory — scoring unlocks automatically when the clip ends.
-              </div>
-            )}
-
             {videoEnded && (
               <div className="flex items-center gap-2 rounded-lg border border-good/25 bg-good/8 px-3 py-2.5 text-xs font-semibold text-good animate-fade-in">
                 <CheckCircle2 size={13} className="shrink-0" />
@@ -507,17 +504,19 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
               </div>
             )}
 
+            {urlType === 'direct-video' && !blobLoading && !blobMissing && !videoEnded && (
+              <div className="flex items-center gap-2 rounded-lg border border-cm-red/30 bg-cm-red/8 px-3 py-2.5 text-xs font-medium text-cm-red">
+                <Play size={12} className="shrink-0" />
+                Clip is playing in fullscreen — watching is mandatory before scoring.
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-3">
               <button className="btn-ghost" onClick={() => setStep('setup')}>
                 ← Back
               </button>
-
-              {/* Advance button only when allowed — no skip for direct video */}
               {!blobLoading && (urlType !== 'direct-video' || videoEnded || blobMissing) && (
-                <button
-                  className="btn-cm flex items-center gap-2"
-                  onClick={() => setStep('score')}
-                >
+                <button className="btn-cm flex items-center gap-2" onClick={() => setStep('score')}>
                   <CheckCircle2 size={14} />
                   {urlType === 'direct-video' && videoEnded ? 'Start judging' : 'Done watching'}
                   <ChevronRight size={14} />
@@ -743,6 +742,129 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
           </div>
         </>
       )}
+      {/* ── MANDATORY FULLSCREEN WATCH OVERLAY (direct-video only) ────────────
+          Rendered inside the Modal but fixed to viewport via CSS — covers all.
+          No pause, no seek forward, only volume. ESC is intercepted above.
+      ─────────────────────────────────────────────────────────────────────── */}
+      {step === 'watch' && urlType === 'direct-video' && !blobLoading && !blobMissing && effectiveClipUrl && (
+        <div
+          ref={watchOverlayRef}
+          className="fixed inset-0 z-[9999] flex flex-col bg-black select-none"
+        >
+          {/* Top gradient */}
+          <div
+            className="pointer-events-none absolute left-0 right-0 top-0 z-10 h-24"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.85), transparent)' }}
+          />
+
+          {/* Top controls */}
+          <div className="relative z-20 flex shrink-0 items-center gap-3 px-5 pt-4 pb-2">
+            <button
+              className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-sm text-white/75 transition hover:bg-white/20 hover:text-white"
+              onClick={() => setStep('setup')}
+            >
+              ← Back to setup
+            </button>
+            <div className="flex-1 min-w-0 text-center">
+              <p className="truncate text-sm font-semibold text-white">{model?.emoji} {model?.name}</p>
+              {clipLabel && <p className="truncate text-[11px] text-white/40">{clipLabel}</p>}
+            </div>
+            <div className="shrink-0 rounded-lg border border-cm-red/50 bg-cm-red/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-cm-red">
+              Watch only
+            </div>
+          </div>
+
+          {/* Video — fills remaining space */}
+          <div className="relative flex-1 overflow-hidden">
+            <video
+              ref={videoRef}
+              src={effectiveClipUrl}
+              autoPlay
+              className="absolute inset-0 h-full w-full object-contain"
+              onTimeUpdate={() => {
+                const v = videoRef.current
+                if (!v || v.seeking) return
+                lastValidTimeRef.current = Math.max(lastValidTimeRef.current, v.currentTime)
+                if (v.duration) setVideoProgress(v.currentTime / v.duration)
+              }}
+              onSeeking={() => {
+                const v = videoRef.current
+                if (!v) return
+                if (v.currentTime > lastValidTimeRef.current + 0.5) {
+                  v.currentTime = lastValidTimeRef.current
+                }
+              }}
+              onPause={() => { videoRef.current?.play().catch(() => {}) }}
+              onLoadedMetadata={() => {
+                const v = videoRef.current
+                if (!v) return
+                v.volume = volume
+                setVideoDuration(v.duration)
+              }}
+              onEnded={() => {
+                setVideoEnded(true)
+                setTimeout(() => setStep('score'), 900)
+              }}
+            />
+
+            {/* Ended success flash */}
+            {videoEnded && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-5 bg-black/80 animate-fade-in">
+                <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-good bg-good/15">
+                  <CheckCircle2 size={40} className="text-good" />
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-white">Clip complete</p>
+                  <p className="mt-1 text-sm text-white/45">Opening judge panel…</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom gradient */}
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-28"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)' }}
+          />
+
+          {/* Bottom controls — volume only */}
+          <div className="relative z-20 shrink-0 px-6 pb-6 pt-2">
+            {/* Read-only progress bar */}
+            <div className="mb-3 h-1 w-full overflow-hidden rounded-full bg-white/15">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{ width: `${videoProgress * 100}%`, background: '#cc1111' }}
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              <Volume2 size={15} className="shrink-0 text-white/55" />
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={volume}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  setVolume(v)
+                  if (videoRef.current) {
+                    videoRef.current.volume = v
+                    videoRef.current.muted = v === 0
+                  }
+                }}
+                className="w-28 accent-white"
+              />
+              <span className="ml-2 text-xs text-white/40">
+                {formatTime(videoProgress * videoDuration)} / {formatTime(videoDuration)}
+              </span>
+              <span className="ml-auto text-[10px] font-bold uppercase tracking-wider" style={{ color: 'rgba(204,17,17,0.7)' }}>
+                Watch to unlock scoring
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
     </Modal>
   )
 }

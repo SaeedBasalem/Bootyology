@@ -1,5 +1,6 @@
 import type { AppData } from './types'
 import { statsForModel, pct, levelFromXp, levelTitle, xpProgress, xpForNextLevel } from './scoring'
+import { MAX_TOTAL } from './criteria'
 import { todayISO } from './util'
 
 export interface Achievement {
@@ -20,7 +21,7 @@ export function getAchievements(data: AppData): Achievement[] {
   const roundCount = data.rounds.length
   const hasElite = data.scorecards.some((c) => pct(c.total) >= 90)
   const hasPerfectCategory = data.scorecards.some(
-    (c) => c.scores.bootyShape === 20 || c.scores.bootyMovement === 20,
+    (c) => c.scores.bootyShape === 25 || c.scores.bootyMovement === 25,
   )
   const bestAvg = Math.max(0, ...data.models.map((m) => statsForModel(data, m.id).average))
   const improved = data.models.some((m) => {
@@ -28,7 +29,7 @@ export function getAchievements(data: AppData): Achievement[] {
     return s.rounds >= 2 && s.cards[s.cards.length - 1].total > s.cards[0].total
   })
   const detailedNotes = data.scorecards.filter((c) => (c.comments?.length ?? 0) > 40).length
-  const hasPerfectScore = data.scorecards.some((c) => c.total >= 110)
+  const hasPerfectScore = data.scorecards.some((c) => c.total >= MAX_TOTAL)
   const { currentStreak: _cur, longestStreak } = data.judgeProfile ?? { currentStreak: 0, longestStreak: 0 }
 
   const loyalFanCount = (() => {
@@ -102,7 +103,7 @@ export function getAchievements(data: AppData): Achievement[] {
     // ── Scoring ──────────────────────────────────────────────────────────
     { id: 'elite', title: "Bootyologist's Eye", desc: 'Award a score in the Elite band (90%+).', icon: '👑', achieved: hasElite, progress: hasElite ? 1 : Math.min(0.99, bestAvg ? pct(bestAvg) / 90 : 0), hint: hasElite ? 'Unlocked' : 'Locked', category: 'scoring' },
     { id: 'perfect_cat', title: 'Perfect Twenty', desc: 'Give a full 20/20 in Shape or Movement.', icon: '💯', achieved: hasPerfectCategory, progress: hasPerfectCategory ? 1 : 0, hint: hasPerfectCategory ? 'Unlocked' : 'Locked', category: 'scoring' },
-    { id: 'perfectionist', title: 'The Perfectionist', desc: 'Score a perfect 110/110 — absolute maximum.', icon: '🌠', achieved: hasPerfectScore, progress: hasPerfectScore ? 1 : 0, hint: hasPerfectScore ? 'Unlocked' : 'Locked', category: 'legend' },
+    { id: 'perfectionist', title: 'The Perfectionist', desc: `Score a perfect ${MAX_TOTAL}/${MAX_TOTAL} — absolute maximum across all 12 criteria.`, icon: '🌠', achieved: hasPerfectScore, progress: hasPerfectScore ? 1 : 0, hint: hasPerfectScore ? 'Unlocked' : 'Locked', category: 'legend' },
     { id: 'improved', title: 'On the Rise', desc: 'Watch a model improve between two rounds.', icon: '📈', achieved: improved, progress: improved ? 1 : 0, hint: improved ? 'Unlocked' : 'Locked', category: 'scoring' },
 
     // ── Ritual ───────────────────────────────────────────────────────────

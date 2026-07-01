@@ -153,9 +153,26 @@ function Sidebar() {
           )
         })}
       </nav>
-      <div className="flex items-center justify-between border-t border-line pt-3">
-        <SyncStatus />
-        <ThemeToggle />
+      <div className="mt-3 border-t border-line pt-3 space-y-3">
+        <a
+          href="https://chocolatemodels.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2.5 rounded-xl border border-line bg-surface2 px-3 py-2 text-xs text-muted transition hover:border-cm-red/40 hover:text-content"
+        >
+          <span className="text-base">🍫</span>
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-content">Chocolate Models</p>
+            <p className="truncate text-[10px] text-muted">Source &amp; inspiration</p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-auto shrink-0 opacity-40">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/>
+          </svg>
+        </a>
+        <div className="flex items-center justify-between">
+          <SyncStatus />
+          <ThemeToggle />
+        </div>
       </div>
     </aside>
   )
@@ -207,6 +224,18 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
             )
           })}
         </nav>
+        <a
+          href="https://chocolatemodels.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 flex items-center gap-2.5 rounded-xl border border-line bg-surface2 px-3 py-2.5 text-xs text-muted transition hover:border-cm-red/40 hover:text-content"
+        >
+          <span className="text-base">🍫</span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-content">Chocolate Models</p>
+            <p className="text-[10px] text-muted">Source &amp; inspiration ↗</p>
+          </div>
+        </a>
       </div>
     </div>
   )
