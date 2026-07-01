@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Save, Sparkles, Plus, Heart, Smile, Zap, Star, Film,
   AlertCircle, Layers, Play, ExternalLink, ChevronRight, CheckCircle2, Loader2, Volume2, Maximize2,
@@ -81,10 +82,12 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   // ── watch step state ──────────────────────────────────────────────────────
   const [videoEnded, setVideoEnded] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const watchOverlayRef = useRef<HTMLDivElement>(null)
   const lastValidTimeRef = useRef(0)   // furthest point reached during natural playback
-  const isFullscreenRef = useRef(false) // sync mirror of isFullscreen for use in video callbacks
+  const isFullscreenRef = useRef(false) // sync mirror of isFullscreen for video callbacks
   const hasEnteredFsRef = useRef(false) // did we ever successfully enter fullscreen this session?
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [pendingFs, setPendingFs] = useState(false) // triggers fullscreen request after overlay mounts
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [blobLoading, setBlobLoading] = useState(false)
   const [blobMissing, setBlobMissing] = useState(false)
@@ -140,6 +143,15 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
     }
   }, [step, selectedClip?.id, selectedClip?.source])
 
+  // After the overlay portal mounts, request fullscreen on the overlay element itself.
+  // useLayoutEffect runs synchronously after React commits the DOM — still well within
+  // the 5-second user-gesture window from the "Start session" button click.
+  useLayoutEffect(() => {
+    if (!pendingFs || !watchOverlayRef.current) return
+    setPendingFs(false)
+    watchOverlayRef.current.requestFullscreen?.().catch(() => {})
+  }, [pendingFs])
+
   // Block ESC from closing the Modal (capture phase fires before Modal's listener).
   // Note: ESC WILL still exit browser fullscreen — that's enforced by the browser and
   // cannot be prevented. The fullscreenchange handler immediately re-requests entry.
@@ -168,8 +180,8 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
         hasEnteredFsRef.current = true
         videoRef.current?.play().catch(() => {}) // resume after returning from lockout
       } else if (step === 'watch' && !videoEnded) {
-        // Synchronous re-request while still in user-gesture window
-        document.documentElement.requestFullscreen?.().catch(() => {
+        // Synchronous re-request while still in user-gesture window (ESC = user gesture)
+        watchOverlayRef.current?.requestFullscreen?.().catch(() => {
           // Browser blocked re-entry — lockout shows, video pauses via onPause guard
         })
       }
@@ -234,9 +246,9 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
     isFullscreenRef.current = false
     setIsFullscreen(false)
     setStep('watch')
-    // Request fullscreen here — inside the button click = user-gesture context,
-    // so the browser allows it without a popup or denial.
-    document.documentElement.requestFullscreen?.().catch(() => {})
+    // Signal that we want fullscreen. useLayoutEffect fires synchronously
+    // after the overlay div mounts (within the user-gesture window from this click).
+    setPendingFs(true)
   }
 
   function handleSave() {
@@ -774,11 +786,14 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
         </>
       )}
       {/* ── MANDATORY FULLSCREEN WATCH OVERLAY (direct-video only) ────────────
-          Rendered inside the Modal but fixed to viewport via CSS — covers all.
-          No pause, no seek forward, only volume. ESC is intercepted above.
+          Portalled to document.body so position:fixed is relative to the real
+          viewport, not the Modal dialog's transform/animation context.
+          requestFullscreen() targets this element directly — only the overlay
+          fills the screen, not the whole page.
       ─────────────────────────────────────────────────────────────────────── */}
-      {step === 'watch' && urlType === 'direct-video' && !blobLoading && !blobMissing && effectiveClipUrl && (
+      {step === 'watch' && urlType === 'direct-video' && !blobLoading && !blobMissing && effectiveClipUrl && createPortal(
         <div
+          ref={watchOverlayRef}
           className="fixed inset-0 z-[9999] flex flex-col bg-black select-none"
         >
           {/* Video area — cursor hidden so browser native fullscreen controls cannot be triggered */}
@@ -853,7 +868,7 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
                 </div>
                 <button
                   className="btn-cm flex items-center gap-2"
-                  onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}
+                  onClick={() => watchOverlayRef.current?.requestFullscreen?.().catch(() => {})}
                 >
                   <Maximize2 size={14} /> Return to fullscreen
                 </button>
@@ -902,7 +917,8 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
               </span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </Modal>
