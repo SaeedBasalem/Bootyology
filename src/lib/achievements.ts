@@ -21,7 +21,7 @@ export function getAchievements(data: AppData): Achievement[] {
   const roundCount = data.rounds.length
   const hasElite = data.scorecards.some((c) => pct(c.total) >= 90)
   const hasPerfectCategory = data.scorecards.some(
-    (c) => c.scores.bootyShape === 25 || c.scores.bootyMovement === 25,
+    (c) => c.scores.bootyShape === 80 || c.scores.bootyMovement === 70,
   )
   const bestAvg = Math.max(0, ...data.models.map((m) => statsForModel(data, m.id).average))
   const improved = data.models.some((m) => {
@@ -102,8 +102,8 @@ export function getAchievements(data: AppData): Achievement[] {
 
     // ── Scoring ──────────────────────────────────────────────────────────
     { id: 'elite', title: "Bootyologist's Eye", desc: 'Award a score in the Elite band (90%+).', icon: '👑', achieved: hasElite, progress: hasElite ? 1 : Math.min(0.99, bestAvg ? pct(bestAvg) / 90 : 0), hint: hasElite ? 'Unlocked' : 'Locked', category: 'scoring' },
-    { id: 'perfect_cat', title: 'Perfect Twenty', desc: 'Give a full 20/20 in Shape or Movement.', icon: '💯', achieved: hasPerfectCategory, progress: hasPerfectCategory ? 1 : 0, hint: hasPerfectCategory ? 'Unlocked' : 'Locked', category: 'scoring' },
-    { id: 'perfectionist', title: 'The Perfectionist', desc: `Score a perfect ${MAX_TOTAL}/${MAX_TOTAL} — absolute maximum across all 12 criteria.`, icon: '🌠', achieved: hasPerfectScore, progress: hasPerfectScore ? 1 : 0, hint: hasPerfectScore ? 'Unlocked' : 'Locked', category: 'legend' },
+    { id: 'perfect_cat', title: 'Perfect Booty', desc: 'Give a perfect 80 in Shape or perfect 70 in Movement.', icon: '💯', achieved: hasPerfectCategory, progress: hasPerfectCategory ? 1 : 0, hint: hasPerfectCategory ? 'Unlocked' : 'Locked', category: 'scoring' },
+    { id: 'perfectionist', title: 'The Perfectionist', desc: `Score a perfect ${MAX_TOTAL}/${MAX_TOTAL} — absolute maximum across all 17 criteria.`, icon: '🌠', achieved: hasPerfectScore, progress: hasPerfectScore ? 1 : 0, hint: hasPerfectScore ? 'Unlocked' : 'Locked', category: 'legend' },
     { id: 'improved', title: 'On the Rise', desc: 'Watch a model improve between two rounds.', icon: '📈', achieved: improved, progress: improved ? 1 : 0, hint: improved ? 'Unlocked' : 'Locked', category: 'scoring' },
 
     // ── Ritual ───────────────────────────────────────────────────────────
@@ -193,12 +193,13 @@ export function getJudgeLevelInfo(data: AppData): JudgeLevelInfo {
 
 const FOCUS_CHALLENGES = [
   { criterion: 'bootyShape' as const, title: 'Shape Focus Day', desc: 'Pay extra attention to Booty Shape — rate it harder than usual.' },
-  { criterion: 'bootyMovement' as const, title: 'Movement Focus Day', desc: 'Isolate Booty Movement above all other criteria today.' },
-  { criterion: 'sensuality' as const, title: 'Sensuality Study', desc: "Today's lens: Sensuality. How fluid and authentic is the energy?" },
-  { criterion: 'sexAppeal' as const, title: 'Charisma Test', desc: 'Rate Sex Appeal with extra precision — who commands the most presence?' },
-  { criterion: 'dancePerformance' as const, title: 'Choreography Review', desc: 'Focus on Dance Performance — creativity, use of space, and confidence.' },
-  { criterion: 'bodyHarmony' as const, title: 'Harmony Day', desc: 'How well does the full package come together? Judge Body Harmony above all else.' },
-  { criterion: 'faceBeauty' as const, title: 'Face Card Day', desc: 'Face Beauty is the lens — eye contact, expression, and confidence in close shots.' },
+  { criterion: 'bootyMovement' as const, title: 'Movement Focus Day', desc: 'Isolate Booty Dynamics above all other criteria today.' },
+  { criterion: 'bootyIsolation' as const, title: 'Isolation Day', desc: "Today's lens: Booty Isolation — how precise and independent is the glute control?" },
+  { criterion: 'sensuality' as const, title: 'Sensuality Study', desc: "Today's lens: Sensual Energy. How fluid and authentic is the energy?" },
+  { criterion: 'sexAppeal' as const, title: 'Charisma Test', desc: 'Rate Sexual Magnetism with extra precision — who commands the most presence?' },
+  { criterion: 'bodyRevealStyle' as const, title: 'Reveal Artistry Day', desc: 'Focus on Body Reveal & Teasing Style — how deliberately is the body shown?' },
+  { criterion: 'bodyHarmony' as const, title: 'Curves Day', desc: 'How well do the proportions and curvature come together? Judge Body Proportions above all else.' },
+  { criterion: 'faceBeauty' as const, title: 'Face Card Day', desc: 'Facial Allure is the lens — eye contact, expression, and confidence in close shots.' },
 ]
 
 export function generateDailyChallenge(data: AppData, date: string): import('./types').DailyChallenge | null {
