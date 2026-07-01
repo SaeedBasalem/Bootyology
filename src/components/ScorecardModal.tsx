@@ -93,6 +93,8 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
   const [volume, setVolume] = useState(1)
   const [videoProgress, setVideoProgress] = useState(0)
   const [videoDuration, setVideoDuration] = useState(0)
+  const [controlsVisible, setControlsVisible] = useState(true)
+  const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── derived ───────────────────────────────────────────────────────────────
   const modelClips = useMemo(
@@ -141,6 +143,24 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [step, selectedClip?.id, selectedClip?.source])
+
+  // Auto-hide controls in fullscreen: hide after 3 s of no mouse movement,
+  // show immediately on any mouse move (handler attached to the overlay div).
+  function showControlsTemporarily() {
+    setControlsVisible(true)
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+    controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 3000)
+  }
+  useEffect(() => {
+    if (isFullscreen && !videoEnded) {
+      showControlsTemporarily()
+    } else {
+      setControlsVisible(true)
+      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+    }
+    return () => { if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullscreen, videoEnded])
 
   // Block ESC from closing the Modal (capture phase fires before Modal's listener).
   // Note: ESC WILL still exit browser fullscreen — that's enforced by the browser and
@@ -787,9 +807,10 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
         <div
           ref={watchOverlayRef}
           className="fixed inset-0 z-[9999] flex flex-col bg-black select-none"
+          onMouseMove={showControlsTemporarily}
         >
-          {/* Video area — cursor hidden so browser native fullscreen controls cannot be triggered */}
-          <div className="relative flex-1 overflow-hidden" style={{ cursor: 'none' }}>
+          {/* Cursor hidden while controls are hidden; shown when mouse moves */}
+          <div className="relative flex-1 overflow-hidden" style={{ cursor: controlsVisible ? 'default' : 'none' }}>
             <video
               ref={videoRef}
               src={effectiveClipUrl}
@@ -869,14 +890,17 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
 
           </div>
 
-          {/* Bottom gradient */}
+          {/* Bottom gradient — fades with the controls */}
           <div
-            className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-24"
-            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)' }}
+            className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 h-24 transition-opacity duration-700"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)', opacity: controlsVisible ? 1 : 0 }}
           />
 
-          {/* Bottom controls — cursor restored, volume only */}
-          <div className="relative z-20 shrink-0 px-6 pb-5 pt-2" style={{ cursor: 'default' }}>
+          {/* Bottom controls — fade out when idle, fade in on mouse move */}
+          <div
+            className="relative z-20 shrink-0 px-6 pb-5 pt-2 transition-opacity duration-700"
+            style={{ cursor: 'default', opacity: controlsVisible ? 1 : 0, pointerEvents: controlsVisible ? 'auto' : 'none' }}
+          >
             <div className="mb-3 h-1 w-full overflow-hidden rounded-full bg-white/15">
               <div
                 className="h-full rounded-full transition-all duration-300"
