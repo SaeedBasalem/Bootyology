@@ -140,11 +140,17 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
     }
   }, [step, selectedClip?.id, selectedClip?.source])
 
-  // Intercept ESC while the mandatory watch overlay is active so the Modal can't close
+  // Intercept ESC during mandatory watching so the Modal can never close.
+  // Uses capture phase so it fires before the Modal's window-level listener.
+  // Note: browsers always exit fullscreen on ESC regardless — the fullscreenchange
+  // handler above immediately re-requests entry to keep the user locked in.
   useEffect(() => {
     if (step !== 'watch' || urlType !== 'direct-video' || blobLoading || blobMissing || videoEnded) return
     const stopEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') e.stopImmediatePropagation()
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation()
+        e.preventDefault() // belt-and-suspenders; browsers ignore this for fullscreen but costs nothing
+      }
     }
     document.addEventListener('keydown', stopEsc, true)
     return () => document.removeEventListener('keydown', stopEsc, true)
@@ -169,18 +175,25 @@ export function ScorecardModal({ open, onClose, editing, presetModelId, presetCl
     }
   }, [step])
 
-  // Track fullscreen state; auto-re-enter if user exits during mandatory watching
+  // Track fullscreen state; re-enter IMMEDIATELY (synchronously in the event handler
+  // while still inside the browser's user-gesture window — a setTimeout would miss it)
   useEffect(() => {
     const onFsChange = () => {
       const inFs = !!document.fullscreenElement
-      if (inFs) hasEnteredFsRef.current = true
-      setIsFullscreen(inFs)
-      // Try to re-enter automatically — may fail without user gesture; lockout screen handles that
-      if (!inFs && step === 'watch' && urlType === 'direct-video' && !videoEnded && !blobLoading && !blobMissing) {
-        setTimeout(() => {
-          const el = watchOverlayRef.current
-          if (el && !document.fullscreenElement) el.requestFullscreen?.().catch(() => {})
-        }, 250)
+      if (inFs) {
+        hasEnteredFsRef.current = true
+        setIsFullscreen(true)
+        return
+      }
+      // Exited fullscreen — attempt immediate re-entry synchronously
+      setIsFullscreen(false)
+      if (step === 'watch' && urlType === 'direct-video' && !videoEnded && !blobLoading && !blobMissing) {
+        const el = watchOverlayRef.current
+        if (el) {
+          el.requestFullscreen().catch(() => {
+            // Browser blocked re-entry — lockout screen will show via state update above
+          })
+        }
       }
     }
     document.addEventListener('fullscreenchange', onFsChange)
