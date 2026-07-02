@@ -1,14 +1,26 @@
 import { useState } from 'react'
-import { Plus, Search, Pencil, Heart, ClipboardPlus, Users, LayoutGrid, List, MapPin, Star, Flame, Clock, Zap } from 'lucide-react'
+import { Plus, Search, Pencil, Heart, ClipboardPlus, Users, LayoutGrid, List, MapPin, Star, Flame, Clock, Zap, X } from 'lucide-react'
+import HoverVideoPlayer from 'react-hover-video-player'
 import { useStore } from '../lib/store'
 import { useNav } from '../lib/nav'
 import { useActions } from '../components/ActionsProvider'
 import { SectionHeader, Avatar, Badge, EmptyState, CyclingPhoto } from '../components/ui'
+import { ScoreRing } from '../components/ScoreRing'
 import { statsForModel, scoreTier, daysSinceLastScore } from '../lib/scoring'
 import { classNames } from '../lib/util'
+import type { Clip } from '../lib/types'
 
 type Filter = 'all' | 'favorites' | 'scored' | 'unscored'
 type ViewMode = 'magazine' | 'grid' | 'list'
+
+function getVideoUrl(clips: Clip[], modelId: string): string | null {
+  for (const clip of clips) {
+    if (clip.modelId !== modelId || !clip.url) continue
+    if (clip.url.includes('youtube.com') || clip.url.includes('youtu.be')) continue
+    return clip.url
+  }
+  return null
+}
 
 export function Models() {
   const { data } = useStore()
@@ -16,6 +28,7 @@ export function Models() {
   const { newModel, editModel, newScorecard } = useActions()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [category, setCategory] = useState('All')
   const [viewMode, setViewMode] = useState<ViewMode>('magazine')
   const [activeWorkspace, setActiveWorkspace] = useState<string>('all')
 
@@ -29,8 +42,13 @@ export function Models() {
   // Collect unique workspaces
   const workspaces = ['all', ...Array.from(new Set(data.models.filter((m) => !m.archived && m.workspace).map((m) => m.workspace!)))]
 
+  // Collect unique categories
+  const rawCategories = Array.from(new Set(data.models.filter((m) => !m.archived && m.category).map((m) => m.category!))).sort()
+  const categories = ['All', ...rawCategories]
+
   let models = data.models.filter((m) => !m.archived)
   if (activeWorkspace !== 'all') models = models.filter((m) => m.workspace === activeWorkspace)
+  if (category !== 'All') models = models.filter((m) => m.category === category)
   if (query.trim()) {
     const q = query.toLowerCase()
     models = models.filter(
@@ -46,13 +64,20 @@ export function Models() {
   })
   models.sort((a, b) => statsForModel(data, b.id).average - statsForModel(data, a.id).average || a.name.localeCompare(b.name))
 
-  const total = data.models.filter((m) => !m.archived).length
+  const totalAll = data.models.filter((m) => !m.archived).length
+  const hasActiveFilters = filter !== 'all' || category !== 'All' || query.trim().length > 0
+
+  function clearFilters() {
+    setFilter('all')
+    setCategory('All')
+    setQuery('')
+  }
 
   return (
     <div>
       <SectionHeader
         title="Roster"
-        subtitle={`${total} model${total !== 1 ? 's' : ''} in your studio.`}
+        subtitle={`${totalAll} model${totalAll !== 1 ? 's' : ''} in your studio.`}
         action={
           <button className="btn-gold" onClick={newModel}>
             <Plus size={16} /> Add model
@@ -80,8 +105,35 @@ export function Models() {
         </div>
       )}
 
-      {/* Search + filters + view toggle */}
-      <div className="mb-5 flex flex-wrap items-center gap-3">
+      {/* Category filter chips */}
+      {rawCategories.length > 0 && (
+        <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+          {categories.map((cat) => {
+            const count =
+              cat === 'All'
+                ? data.models.filter((m) => !m.archived).length
+                : data.models.filter((m) => !m.archived && m.category === cat).length
+            return (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={classNames(
+                  'shrink-0 rounded-full border px-3 py-1 text-xs font-semibold transition',
+                  category === cat
+                    ? 'border-gold bg-surface2 text-gold'
+                    : 'border-line text-muted hover:text-content',
+                )}
+              >
+                {cat}
+                <span className="ml-1 opacity-50">{count}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Search + status filters + view toggle */}
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         <div className="relative min-w-[180px] flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
           <input className="input pl-9" placeholder="Search models…" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -118,15 +170,55 @@ export function Models() {
         </div>
       </div>
 
+      {/* Active filter pill bar */}
+      {hasActiveFilters && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted">
+            Showing <span className="font-semibold text-content">{models.length}</span> of {totalAll}
+          </span>
+          {filter !== 'all' && (
+            <button
+              onClick={() => setFilter('all')}
+              className="flex items-center gap-1 rounded-full border border-gold/40 bg-surface2 px-2.5 py-0.5 text-xs font-semibold text-gold transition hover:bg-surface"
+            >
+              {filters.find((f) => f.key === filter)?.label} <X size={10} />
+            </button>
+          )}
+          {category !== 'All' && (
+            <button
+              onClick={() => setCategory('All')}
+              className="flex items-center gap-1 rounded-full border border-gold/40 bg-surface2 px-2.5 py-0.5 text-xs font-semibold text-gold transition hover:bg-surface"
+            >
+              {category} <X size={10} />
+            </button>
+          )}
+          {query.trim() && (
+            <button
+              onClick={() => setQuery('')}
+              className="flex items-center gap-1 rounded-full border border-gold/40 bg-surface2 px-2.5 py-0.5 text-xs font-semibold text-gold transition hover:bg-surface"
+            >
+              "{query.trim()}" <X size={10} />
+            </button>
+          )}
+          <button onClick={clearFilters} className="ml-1 text-xs text-muted underline hover:text-content">
+            Clear all
+          </button>
+        </div>
+      )}
+
       {models.length === 0 ? (
         <EmptyState
           icon={<Users size={28} />}
           title="No models here"
-          message={query || filter !== 'all' ? 'Try clearing the search or filter.' : 'Add the performers you follow to start ranking them.'}
+          message={hasActiveFilters ? 'Try clearing the search or filter.' : 'Add the performers you follow to start ranking them.'}
           action={
-            <button className="btn-gold" onClick={newModel}>
-              <Plus size={16} /> Add your first model
-            </button>
+            hasActiveFilters ? (
+              <button className="btn-ghost" onClick={clearFilters}>Clear filters</button>
+            ) : (
+              <button className="btn-gold" onClick={newModel}>
+                <Plus size={16} /> Add your first model
+              </button>
+            )
           }
         />
       ) : viewMode === 'magazine' ? (
@@ -140,7 +232,7 @@ export function Models() {
   )
 }
 
-// ── Magazine view (photo-forward editorial cards) ─────────────────────────────
+// ── Magazine view (photo-forward editorial cards with hover-play) ──────────────
 
 function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
   const { data } = useStore()
@@ -153,6 +245,8 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
         const daysSince = daysSinceLastScore(data, m.id)
         const modelClips = data.clips.filter((c) => c.modelId === m.id)
         const hasUnscoredClips = modelClips.some((c) => !data.scorecards.some((s) => s.clipId === c.id))
+        const videoUrl = getVideoUrl(data.clips, m.id)
+
         return (
           <div key={m.id} className={classNames(
             'group relative overflow-hidden rounded-2xl border bg-surface shadow-card transition',
@@ -160,23 +254,42 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
               ? 'border-cm-red/30 hover:border-cm-red/60 hover:shadow-[0_8px_28px_rgba(204,17,17,0.18)]'
               : 'border-line hover:border-gold/40 hover:shadow-[0_8px_30px_rgba(227,188,99,0.12)]',
           )}>
-            {/* Photo area */}
+            {/* Photo / hover-play area */}
             <button onClick={() => go('profile', m.id)} className="block w-full">
               {m.photoUrl ? (
                 <div className="relative h-60 w-full overflow-hidden">
-                  {/* Auto-cycle through all model photos; stagger start by card index so cards don't all flip simultaneously */}
-                  <CyclingPhoto
-                    photos={[m.photoUrl, ...(m.photos ?? [])]}
-                    alt={m.name}
-                    intervalMs={4500}
-                    startDelay={i * 800}
-                  />
-                  {/* Subtle scale on hover via the group class */}
-                  <div className="absolute inset-0 transition duration-500 group-hover:scale-105 pointer-events-none" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent" />
-                  {/* Photo count pip */}
-                  {(m.photos ?? []).length > 0 && (
-                    <div className="absolute bottom-[72px] left-3">
+                  {videoUrl ? (
+                    <HoverVideoPlayer
+                      videoSrc={videoUrl}
+                      pausedOverlay={
+                        <CyclingPhoto
+                          photos={[m.photoUrl, ...(m.photos ?? [])]}
+                          alt={m.name}
+                          intervalMs={4500}
+                          startDelay={i * 800}
+                        />
+                      }
+                      loadingOverlay={<div className="absolute inset-0 bg-black/30" />}
+                      className="absolute inset-0 h-full w-full"
+                      videoClassName="absolute inset-0 h-full w-full object-cover"
+                      muted
+                      loop
+                      disableRemotePlayback
+                    />
+                  ) : (
+                    <CyclingPhoto
+                      photos={[m.photoUrl, ...(m.photos ?? [])]}
+                      alt={m.name}
+                      intervalMs={4500}
+                      startDelay={i * 800}
+                    />
+                  )}
+
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/15 to-transparent pointer-events-none" />
+
+                  {/* Photo count / hover-play pip */}
+                  {(m.photos ?? []).length > 0 && !videoUrl && (
+                    <div className="absolute bottom-[72px] left-3 pointer-events-none">
                       <span className="flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white/70 backdrop-blur-sm">
                         {Array.from({ length: Math.min((m.photos ?? []).length + 1, 5) }).map((_, di) => (
                           <span key={di} className="inline-block h-1 w-1 rounded-full bg-white/60" />
@@ -184,8 +297,14 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
                       </span>
                     </div>
                   )}
-                  {/* Rank badge — jersey style */}
-                  <div className="absolute left-3 top-3">
+                  {videoUrl && (
+                    <div className="pointer-events-none absolute bottom-[72px] left-3 rounded-full bg-black/50 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/55 opacity-0 transition-opacity group-hover:opacity-100 backdrop-blur-sm">
+                      ▶ preview
+                    </div>
+                  )}
+
+                  {/* Rank badge */}
+                  <div className="pointer-events-none absolute left-3 top-3">
                     <span
                       className="rank-badge flex h-8 w-8 rounded-lg text-base shadow-lg"
                       style={{
@@ -198,26 +317,34 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
                       {rank}
                     </span>
                   </div>
-                  {/* Tier pill */}
+
+                  {/* Score ring (replaces tier pill) */}
                   {stats.rounds > 0 && (
-                    <div className="absolute right-3 top-3">
+                    <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/50 p-0.5 backdrop-blur-sm">
+                      <ScoreRing score={stats.average} size={46} strokeWidth={3} />
+                    </div>
+                  )}
+                  {stats.rounds === 0 && m.category && (
+                    <div className="pointer-events-none absolute right-3 top-3">
                       <span className="tier-pill" style={{ background: `${tier.color}22`, color: tier.color, border: `1px solid ${tier.color}55` }}>
-                        {tier.label}
+                        {m.category}
                       </span>
                     </div>
                   )}
+
                   {m.favorite && (
-                    <div className="absolute right-3 bottom-[72px]">
+                    <div className="pointer-events-none absolute right-3 bottom-[72px]">
                       <Heart size={15} className="fill-rose text-rose drop-shadow" />
                     </div>
                   )}
                   {rank === 1 && (
-                    <div className="absolute left-3 bottom-[72px]">
+                    <div className="pointer-events-none absolute left-3 bottom-[72px]">
                       <Flame size={15} className="text-cm-red-soft drop-shadow" />
                     </div>
                   )}
+
                   {/* Name over photo */}
-                  <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <div className="pointer-events-none absolute bottom-0 left-0 right-0 p-4">
                     <p className="font-display text-xl font-bold leading-tight text-white drop-shadow">{m.name}</p>
                     {m.aliases && <p className="text-[11px] text-white/60">aka {m.aliases}</p>}
                   </div>
@@ -228,7 +355,7 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
                   style={{ background: `radial-gradient(circle at 30% 25%, ${m.accent}33, ${m.accent}08)` }}
                 >
                   <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={76} />
-                  <div className="absolute left-3 top-3">
+                  <div className="pointer-events-none absolute left-3 top-3">
                     <span
                       className="rank-badge flex h-8 w-8 rounded-lg text-base shadow"
                       style={{
@@ -241,13 +368,11 @@ function MagazineView({ models, go, editModel, newScorecard }: ViewProps) {
                     </span>
                   </div>
                   {stats.rounds > 0 && (
-                    <div className="absolute right-3 top-3">
-                      <span className="tier-pill" style={{ background: `${tier.color}22`, color: tier.color, border: `1px solid ${tier.color}55` }}>
-                        {tier.label}
-                      </span>
+                    <div className="pointer-events-none absolute right-3 top-3 rounded-full bg-black/40 p-0.5">
+                      <ScoreRing score={stats.average} size={44} strokeWidth={3} />
                     </div>
                   )}
-                  {m.favorite && <Heart size={15} className="absolute right-3 bottom-3 fill-rose text-rose" />}
+                  {m.favorite && <Heart size={15} className="absolute right-3 bottom-3 fill-rose text-rose pointer-events-none" />}
                 </div>
               )}
             </button>
@@ -330,54 +455,83 @@ function GridView({ models, go, editModel, newScorecard }: ViewProps) {
         const tier = scoreTier(stats.average)
         const modelClips = data.clips.filter((c) => c.modelId === m.id)
         const hasUnscoredClips = modelClips.some((c) => !data.scorecards.some((s) => s.clipId === c.id))
+        const videoUrl = getVideoUrl(data.clips, m.id)
+
         return (
           <div key={m.id} className={classNames(
-            'card group p-4 transition',
+            'card group p-0 overflow-hidden transition',
             hasUnscoredClips ? 'border-cm-red/25 hover:border-cm-red/55' : 'hover:border-gold/40',
           )}>
-            <div className="flex items-start gap-3">
-              <button onClick={() => go('profile', m.id)}>
-                <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={50} photoUrl={m.photoUrl} />
-              </button>
-              <div className="min-w-0 flex-1">
-                <button onClick={() => go('profile', m.id)} className="block text-left">
-                  <p className="flex items-center gap-1.5 truncate font-semibold text-content group-hover:text-gold">
-                    {m.name} {m.favorite && <Heart size={13} className="fill-rose text-rose" />}
-                  </p>
-                  {m.aliases && <p className="truncate text-xs text-muted">aka {m.aliases}</p>}
-                </button>
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {m.category && <Badge color={m.accent}>{m.category}</Badge>}
-                  {m.tags.slice(0, 2).map((t) => <Badge key={t}>{t}</Badge>)}
+            {/* Photo + hover-play area */}
+            <button onClick={() => go('profile', m.id)} className="relative block h-40 w-full overflow-hidden">
+              {m.photoUrl ? (
+                videoUrl ? (
+                  <HoverVideoPlayer
+                    videoSrc={videoUrl}
+                    pausedOverlay={
+                      <img src={m.photoUrl} alt={m.name} className="absolute inset-0 h-full w-full object-cover" />
+                    }
+                    className="absolute inset-0 h-full w-full"
+                    videoClassName="absolute inset-0 h-full w-full object-cover"
+                    muted
+                    loop
+                    disableRemotePlayback
+                  />
+                ) : (
+                  <img src={m.photoUrl} alt={m.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                )
+              ) : (
+                <div className="flex h-full items-center justify-center" style={{ background: `radial-gradient(circle, ${m.accent}33, ${m.accent}08)` }}>
+                  <Avatar name={m.name} emoji={m.emoji} accent={m.accent} size={52} />
+                </div>
+              )}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+              {/* Score ring overlay */}
+              {stats.rounds > 0 && (
+                <div className="pointer-events-none absolute right-2 top-2 rounded-full bg-black/50 p-0.5 backdrop-blur-sm">
+                  <ScoreRing score={stats.average} size={42} strokeWidth={3} />
+                </div>
+              )}
+              {m.favorite && <Heart size={13} className="pointer-events-none absolute right-2 bottom-10 fill-rose text-rose drop-shadow" />}
+              {/* Name overlay */}
+              <div className="pointer-events-none absolute bottom-0 left-0 right-0 p-2.5">
+                <p className="truncate font-display text-sm font-bold text-white drop-shadow">{m.name}</p>
+              </div>
+            </button>
+
+            {/* Card body */}
+            <div className="p-3">
+              <div className="mb-2 flex flex-wrap gap-1">
+                {m.category && <Badge color={m.accent}>{m.category}</Badge>}
+                {m.tags.slice(0, 1).map((t) => <Badge key={t}>{t}</Badge>)}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 text-center">
+                <div className="rounded-lg bg-surface2 py-1.5">
+                  <p className="font-display text-base font-bold" style={{ color: tier.color }}>{stats.rounds ? stats.average : '—'}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted">Avg</p>
+                </div>
+                <div className="rounded-lg bg-surface2 py-1.5">
+                  <p className="font-display text-base font-bold text-content">{stats.rounds ? stats.best : '—'}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted">Best</p>
+                </div>
+                <div className="rounded-lg bg-surface2 py-1.5">
+                  <p className="font-display text-base font-bold text-content">{stats.rounds}</p>
+                  <p className="text-[10px] uppercase tracking-wide text-muted">Clips</p>
                 </div>
               </div>
-              <button onClick={() => editModel(m)} className="btn-quiet h-8 w-8 shrink-0 p-0" aria-label="Edit">
-                <Pencil size={14} />
+              <button
+                onClick={() => {
+                  const firstUnscored = modelClips.find((c) => !data.scorecards.some((s) => s.clipId === c.id))
+                  newScorecard({ modelId: m.id, clipId: firstUnscored?.id })
+                }}
+                className={hasUnscoredClips ? 'btn-cm mt-2.5 w-full text-xs' : 'btn-ghost mt-2.5 w-full text-xs'}
+              >
+                <ClipboardPlus size={13} /> {hasUnscoredClips ? 'Score now' : 'Score'}
+              </button>
+              <button onClick={() => editModel(m)} className="btn-quiet mt-1 w-full h-7 text-xs p-0" aria-label="Edit">
+                <Pencil size={12} /> Edit
               </button>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-              <div className="rounded-lg bg-surface2 py-2">
-                <p className="font-display text-lg font-bold" style={{ color: tier.color }}>{stats.rounds ? stats.average : '—'}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted">Avg</p>
-              </div>
-              <div className="rounded-lg bg-surface2 py-2">
-                <p className="font-display text-lg font-bold text-content">{stats.rounds ? stats.best : '—'}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted">Best</p>
-              </div>
-              <div className="rounded-lg bg-surface2 py-2">
-                <p className="font-display text-lg font-bold text-content">{stats.rounds}</p>
-                <p className="text-[10px] uppercase tracking-wide text-muted">Clips</p>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                const firstUnscored = modelClips.find((c) => !data.scorecards.some((s) => s.clipId === c.id))
-                newScorecard({ modelId: m.id, clipId: firstUnscored?.id })
-              }}
-              className={hasUnscoredClips ? 'btn-cm mt-3 w-full' : 'btn-ghost mt-3 w-full'}
-            >
-              <ClipboardPlus size={15} /> {hasUnscoredClips ? 'Score now' : 'Score'}
-            </button>
           </div>
         )
       })}
@@ -393,7 +547,6 @@ function ListView({ models, go, editModel, newScorecard }: ViewProps) {
     <div className="card divide-y divide-line overflow-hidden p-0">
       {models.map((m, i) => {
         const stats = statsForModel(data, m.id)
-        const tier = scoreTier(stats.average)
         return (
           <div key={m.id} className="flex items-center gap-3 px-4 py-3 transition hover:bg-surface2">
             <span className="w-6 shrink-0 text-center text-xs font-bold text-muted">#{i + 1}</span>
@@ -408,12 +561,16 @@ function ListView({ models, go, editModel, newScorecard }: ViewProps) {
                 <p className="truncate text-xs text-muted">{[m.category, m.nationality].filter(Boolean).join(' · ')}</p>
               )}
             </button>
-            <div className="flex items-center gap-4 text-right">
-              <div>
-                <p className="text-sm font-bold" style={{ color: tier.color }}>{stats.rounds ? stats.average : '—'}</p>
-                <p className="text-[10px] text-muted">avg</p>
-              </div>
-              <div className="hidden sm:block">
+            <div className="flex items-center gap-3">
+              {stats.rounds > 0 ? (
+                <ScoreRing score={stats.average} size={38} strokeWidth={3} />
+              ) : (
+                <div className="flex flex-col items-end text-right">
+                  <p className="text-sm font-bold text-muted">—</p>
+                  <p className="text-[10px] text-muted">avg</p>
+                </div>
+              )}
+              <div className="hidden sm:block text-right">
                 <p className="text-sm font-bold text-content">{stats.rounds}</p>
                 <p className="text-[10px] text-muted">scored</p>
               </div>

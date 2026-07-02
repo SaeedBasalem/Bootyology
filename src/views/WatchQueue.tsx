@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { Plus, Play, CheckCircle2, Link, Film, Eye, Search, Upload, X, Loader2, FileVideo, Clock, Zap, Star } from 'lucide-react'
+import HoverVideoPlayer from 'react-hover-video-player'
 import { useStore } from '../lib/store'
 import { useActions } from '../components/ActionsProvider'
 import { Avatar } from '../components/ui'
@@ -42,73 +43,104 @@ function QueueCard({ clip, onMarkWatched, onScore, onLinkModel, onRemove }: {
       {/* Coloured top accent bar */}
       <div className="h-0.5 w-full" style={{ background: meta.color }} />
 
-      {/* Thumbnail / placeholder */}
-      <div className="relative h-36 overflow-hidden" style={{ background: model?.photoUrl ? undefined : meta.bg }}>
-        {/* Model photo as blurred background */}
-        {model?.photoUrl && (
-          <>
-            <img
-              src={model.photoUrl}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover blur-sm scale-105 opacity-35 transition duration-500 group-hover:opacity-50 group-hover:scale-110"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30" />
-          </>
-        )}
+      {/* Thumbnail / hover-play area */}
+      {(() => {
+        const hasPlayableUrl =
+          clip.url &&
+          !clip.url.includes('youtube.com') &&
+          !clip.url.includes('youtu.be')
 
-        {/* Video thumbnail or icon */}
-        {clip.url && clip.source === 'file' ? (
-          <video
-            src={clip.url}
-            className="relative h-full w-full object-cover opacity-0"
-            preload="none"
-          />
-        ) : !model?.photoUrl ? (
-          <div className="flex h-full items-center justify-center">
-            <Film size={36} className="opacity-20" style={{ color: meta.color }} />
-          </div>
-        ) : null}
+        return (
+          <div className="relative h-36 overflow-hidden" style={{ background: model?.photoUrl ? undefined : meta.bg }}>
+            {hasPlayableUrl ? (
+              /* Hover-play: shows model photo when idle, plays clip on hover */
+              <HoverVideoPlayer
+                videoSrc={clip.url!}
+                pausedOverlay={
+                  model?.photoUrl ? (
+                    <>
+                      <img
+                        src={model.photoUrl}
+                        alt=""
+                        className="absolute inset-0 h-full w-full object-cover blur-sm scale-105 opacity-35"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30" />
+                    </>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Film size={36} className="opacity-20" style={{ color: meta.color }} />
+                    </div>
+                  )
+                }
+                loadingOverlay={<div className="absolute inset-0 bg-black/40" />}
+                className="absolute inset-0 h-full w-full"
+                videoClassName="absolute inset-0 h-full w-full object-cover"
+                muted
+                loop
+                disableRemotePlayback
+              />
+            ) : (
+              /* No playable URL: static background */
+              <>
+                {model?.photoUrl ? (
+                  <>
+                    <img
+                      src={model.photoUrl}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover blur-sm scale-105 opacity-35 transition duration-500 group-hover:opacity-50 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/30" />
+                  </>
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <Film size={36} className="opacity-20" style={{ color: meta.color }} />
+                  </div>
+                )}
+                {/* External link play button for YouTube / other links */}
+                {clip.url && (
+                  <a
+                    href={clip.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover:opacity-100"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span
+                      className="flex h-12 w-12 items-center justify-center rounded-full text-white backdrop-blur-sm transition group-hover:scale-110"
+                      style={{ background: `${meta.color}cc` }}
+                    >
+                      <Play size={22} className="ml-0.5 fill-current" />
+                    </span>
+                  </a>
+                )}
+              </>
+            )}
 
-        {/* Play overlay */}
-        {clip.url && (
-          <a
-            href={clip.url}
-            target="_blank"
-            rel="noreferrer"
-            className="absolute inset-0 flex items-center justify-center opacity-0 transition group-hover:opacity-100"
-          >
+            {/* Status badge */}
             <span
-              className="flex h-12 w-12 items-center justify-center rounded-full text-white backdrop-blur-sm transition group-hover:scale-110"
-              style={{ background: `${meta.color}cc` }}
+              className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur-sm"
+              style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.borderColor}` }}
             >
-              <Play size={22} className="ml-0.5 fill-current" />
+              {meta.icon} {meta.label}
             </span>
-          </a>
-        )}
 
-        {/* Status badge top-left */}
-        <span
-          className="absolute left-2 top-2 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur-sm"
-          style={{ background: meta.bg, color: meta.color, border: `1px solid ${meta.borderColor}` }}
-        >
-          {meta.icon} {meta.label}
-        </span>
+            {/* File size */}
+            {clip.source === 'file' && clip.size && (
+              <span className="absolute right-8 top-2 z-10 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/50 backdrop-blur">
+                {formatFileSize(clip.size)}
+              </span>
+            )}
 
-        {/* File size */}
-        {clip.source === 'file' && clip.size && (
-          <span className="absolute right-8 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white/50 backdrop-blur">
-            {formatFileSize(clip.size)}
-          </span>
-        )}
-
-        {/* Remove button */}
-        <button
-          onClick={() => onRemove(clip.id)}
-          className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white/40 opacity-0 transition hover:text-bad group-hover:opacity-100"
-        >
-          <X size={12} />
-        </button>
-      </div>
+            {/* Remove button */}
+            <button
+              onClick={() => onRemove(clip.id)}
+              className="absolute right-2 top-2 z-10 rounded-full bg-black/60 p-1 text-white/40 opacity-0 transition hover:text-bad group-hover:opacity-100"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )
+      })()}
 
       <div className="flex flex-1 flex-col gap-3 p-3">
         <div>

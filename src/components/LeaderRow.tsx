@@ -1,5 +1,7 @@
 import { TrendingUp, TrendingDown, Minus, Flame } from 'lucide-react'
 import { Avatar, Badge } from './ui'
+import { ScoreRing } from './ScoreRing'
+import { Sparkline } from './Sparkline'
 import type { RankedModel } from '../lib/scoring'
 import { pct, scoreTier } from '../lib/scoring'
 import { useNav } from '../lib/nav'
@@ -11,7 +13,15 @@ const RANK_COLORS: Record<number, { bg: string; text: string }> = {
   3: { bg: 'linear-gradient(135deg,#e8a87c,#c97040)', text: '#1a0a00' },
 }
 
-export function LeaderRow({ entry, metricLabel }: { entry: RankedModel; metricLabel: string }) {
+export function LeaderRow({
+  entry,
+  metricLabel,
+  scoreHistory = [],
+}: {
+  entry: RankedModel
+  metricLabel: string
+  scoreHistory?: number[]
+}) {
   const { go } = useNav()
   const tier = scoreTier(entry.metric)
   const percentage = pct(entry.metric)
@@ -36,7 +46,8 @@ export function LeaderRow({ entry, metricLabel }: { entry: RankedModel; metricLa
       )}
       {/* Left accent stripe */}
       <div className="pointer-events-none absolute left-0 top-0 h-full w-0.5 rounded-r" style={{ background: entry.model.accent }} />
-      {/* Rank badge — jersey number style */}
+
+      {/* Rank badge */}
       <div className="relative flex w-10 shrink-0 items-center justify-center">
         {isTop3 && rankMeta ? (
           <div
@@ -61,6 +72,7 @@ export function LeaderRow({ entry, metricLabel }: { entry: RankedModel; metricLa
         ring={entry.rank === 1}
       />
 
+      {/* Name + progress bar + sparkline */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="truncate font-semibold text-content group-hover:text-gold transition-colors">{entry.model.name}</p>
@@ -68,33 +80,30 @@ export function LeaderRow({ entry, metricLabel }: { entry: RankedModel; metricLa
           {entry.rank === 1 && <Flame size={13} className="text-cm-red-soft" />}
         </div>
         <div className="mt-1.5 flex items-center gap-2">
-          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-surface2 sm:w-32">
+          <div className="h-1.5 w-20 overflow-hidden rounded-full bg-surface2 sm:w-28">
             <div className="h-full rounded-full transition-all duration-500" style={{ width: `${percentage}%`, background: tier.color }} />
           </div>
+          {scoreHistory.length >= 2 && (
+            <Sparkline values={scoreHistory} width={52} height={14} />
+          )}
           <span className="text-[11px] text-muted">
             {entry.rounds} {entry.rounds === 1 ? 'clip' : 'clips'}
           </span>
         </div>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <div className="flex items-baseline gap-0.5">
-          <span
-            className="urban-num text-2xl"
-            style={{ color: tier.color, fontFamily: "'Bebas Neue', Impact, sans-serif" }}
-          >
-            {entry.metric}
-          </span>
-          <span className="ml-1 text-[9px] uppercase tracking-wider text-muted">{metricLabel}</span>
-        </div>
+      {/* Score ring + trend */}
+      <div className="flex shrink-0 flex-col items-center gap-1">
+        <ScoreRing score={entry.metric} size={50} strokeWidth={4} />
+        <span className="text-[8px] uppercase tracking-wider text-muted">{metricLabel}</span>
         {entry.trend !== 0 ? (
           <Badge color={entry.trend > 0 ? 'var(--good)' : 'var(--bad)'}>
-            {entry.trend > 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+            {entry.trend > 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
             {entry.trend > 0 ? '+' : ''}{entry.trend}
           </Badge>
         ) : (
-          <span className="flex items-center gap-1 text-[10px] text-muted">
-            <Minus size={10} /> steady
+          <span className="flex items-center gap-1 text-[9px] text-muted">
+            <Minus size={9} /> steady
           </span>
         )}
       </div>

@@ -13,6 +13,7 @@ export type View =
   | 'achievements'
   | 'guide'
   | 'data'
+  | 'browse'
 
 interface NavValue {
   view: View

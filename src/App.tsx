@@ -19,6 +19,7 @@ import {
   Cloud,
   CloudOff,
   Loader2,
+  Sparkles,
 } from 'lucide-react'
 import { StoreProvider, useStore } from './lib/store'
 import { NavProvider, useNav, type View } from './lib/nav'
@@ -38,6 +39,7 @@ import { Insights } from './views/Insights'
 import { Achievements } from './views/Achievements'
 import { Guide } from './views/Guide'
 import { DataManagement } from './views/DataManagement'
+import { Browse } from './views/Browse'
 
 interface NavItem {
   view: View
@@ -49,6 +51,7 @@ const NAV: NavItem[] = [
   { view: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { view: 'leaderboard', label: 'Leaderboard', icon: Trophy },
   { view: 'models', label: 'Roster', icon: Users },
+  { view: 'browse', label: 'Browse', icon: Sparkles },
   { view: 'queue', label: 'Watch Queue', icon: PlayCircle },
   { view: 'clips', label: 'Clip Library', icon: Film },
   { view: 'rounds', label: 'Rounds', icon: Layers },
@@ -140,7 +143,10 @@ function Sidebar() {
       <nav className="mt-4 flex-1 space-y-1 overflow-y-auto">
         {NAV.map((item) => {
           const Icon = item.icon
-          const active = view === item.view || (item.view === 'models' && view === 'profile')
+          const active =
+            view === item.view ||
+            (item.view === 'models' && view === 'profile') ||
+            (item.view === 'browse' && view === 'profile')
           return (
             <button
               key={item.view}
@@ -208,7 +214,10 @@ function MobileMenu({ open, onClose }: { open: boolean; onClose: () => void }) {
         <nav className="space-y-1">
           {NAV.map((item) => {
             const Icon = item.icon
-            const active = view === item.view || (item.view === 'models' && view === 'profile')
+            const active =
+              view === item.view ||
+              (item.view === 'models' && view === 'profile') ||
+              (item.view === 'browse' && view === 'profile')
             return (
               <button
                 key={item.view}
@@ -308,6 +317,8 @@ function MainContent() {
       return <Guide />
     case 'data':
       return <DataManagement />
+    case 'browse':
+      return <Browse />
     default:
       return <Dashboard />
   }
